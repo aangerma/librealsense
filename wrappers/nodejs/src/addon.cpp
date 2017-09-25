@@ -2295,8 +2295,7 @@ class RSPipeline : public Nan::ObjectWrap {
     Nan::SetPrototypeMethod(tpl, "destroy", Destroy);
     Nan::SetPrototypeMethod(tpl, "create", Create);
     Nan::SetPrototypeMethod(tpl, "waitForFrames", WaitForFrames);
-    Nan::SetPrototypeMethod(tpl, "startWithAlign", StartWithAlign);
-    Nan::SetPrototypeMethod(tpl, "commit", Commit);
+    Nan::SetPrototypeMethod(tpl, "start", Start);
     Nan::SetPrototypeMethod(tpl, "stop", Stop);
     Nan::SetPrototypeMethod(tpl, "getDevice", GetDevice);
 
@@ -2320,7 +2319,6 @@ class RSPipeline : public Nan::ObjectWrap {
   }
 
  private:
-  static NAN_METHOD(StartWithAlign);
   RSPipeline() {
     error = nullptr;
     pipeline = nullptr;
@@ -2363,10 +2361,10 @@ class RSPipeline : public Nan::ObjectWrap {
     info.GetReturnValue().Set(Nan::Undefined());
   }
 
-  static NAN_METHOD(Commit) {
+  static NAN_METHOD(Start) {
     auto me = Nan::ObjectWrap::Unwrap<RSPipeline>(info.Holder());
     if (me && me->pipeline) {
-      rs2_commit_config_pipeline(me->pipeline, &me->error);
+      rs2_start_pipeline(me->pipeline, &me->error);
     }
     info.GetReturnValue().Set(Nan::Undefined());
   }

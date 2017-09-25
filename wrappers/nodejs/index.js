@@ -1749,12 +1749,7 @@ class Pipeline {
 
     if (arguments.length === 0) {
       this.cxxPipeline.start();
-    } else {
-      if (!(arguments[0] instanceof Align)) {
-        throw new TypeError('Invalid argument for Pipeline.start()');
-      }
-      this.cxxPipeline.startWithAlign(arguments[0].cxxAlign);
-    }
+    } 
     this.started = true;
     return undefined;
   }
