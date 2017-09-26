@@ -51,7 +51,7 @@ const colorizer = new rs2.Colorizer();
 const renderer = new Texture();
 const align = new rs2.Align(rs2.stream.STREAM_COLOR);
 const pipe = new rs2.Pipeline();
-pipe.start(align);
+pipe.start();
 
 const depthScale = tryGetDepthScale(pipe);
 if (depthScale === undefined) {
@@ -82,7 +82,10 @@ win.setKeyCallback((key, scancode, action, modes) => {
 });
 
 while (!win.shouldWindowClose()) {
-  const frameset = align.waitForFrames();
+  let frameset = pipe. waitForFrames();
+  if (!frameset) continue;
+  align.proccess(frameset);
+  frameset = align.waitForFrames();
   if (!frameset) continue;
 
   let colorFrame = frameset.colorFrame;

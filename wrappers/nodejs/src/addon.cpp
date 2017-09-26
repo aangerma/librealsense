@@ -797,6 +797,7 @@ class RSFrame : public Nan::ObjectWrap {
   friend class RSFrameQueue;
   friend class RSSyncer;
   friend class RSColorizer;
+  friend class RSAlign;
   friend class RSPointcloud;
 };
 
@@ -2525,6 +2526,7 @@ class RSAlign : public Nan::ObjectWrap {
 
     Nan::SetPrototypeMethod(tpl, "destroy", Destroy);
     Nan::SetPrototypeMethod(tpl, "waitForFrames", WaitForFrames);
+    Nan::SetPrototypeMethod(tpl, "proccess", Proccess);
 
     constructor.Reset(tpl->GetFunction());
     exports->Set(Nan::New("RSAlign").ToLocalChecked(), tpl->GetFunction());
@@ -2582,6 +2584,16 @@ class RSAlign : public Nan::ObjectWrap {
       }
     }
     info.GetReturnValue().Set(Nan::Undefined());
+  }
+
+  static NAN_METHOD(Proccess) {
+      auto me = Nan::ObjectWrap::Unwrap<RSAlign>(info.Holder());
+      RSFrame* frame = Nan::ObjectWrap::Unwrap<RSFrame>(info[0]->ToObject());
+      if (me && frame) {
+        rs2_process_frame(me->align, frame->frame, &me->error);
+
+      }
+      info.GetReturnValue().Set(Nan::Undefined());
   }
 
  private:

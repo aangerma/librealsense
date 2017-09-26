@@ -1176,6 +1176,11 @@ class Align {
 
     return new FrameSet(cxxFrameset);
   }
+
+  proccess(frameset)
+  {
+    this.cxxAlign.proccess(frameset.cxxFrameSet);
+  }
 }
 
 /**
@@ -1735,7 +1740,6 @@ class Pipeline {
    *
    * <pre><code>
    *  Syntax 1. start()
-   *  Syntax 2. start(align)
    * </code></pre>
    * Syntax 1 uses the default configuration or configuration commited by
    * enable_stream. Syntax 2 starts passing frames into Align object.
