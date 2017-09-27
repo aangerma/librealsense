@@ -82,24 +82,52 @@ win.setKeyCallback((key, scancode, action, modes) => {
 });
 
 while (!win.shouldWindowClose()) {
-  let frameset = pipe. waitForFrames();
-  if (!frameset) continue;
-  align.proccess(frameset);
-  frameset = align.waitForFrames();
-  if (!frameset) continue;
+  console.log('111');
+  let frameset = pipe.waitForFrames(5000);
 
-  let colorFrame = frameset.colorFrame;
-  let alignedDepthFrame = frameset.depthFrame;
+  if (!frameset)  
+    {
+      continue;
+    }
+
+  let color = frameset.colorFrame;
+  let depth = frameset.depthFrame;
+  if(!color || !depth) 
+    {
+      if(color)
+        color.destroy();
+      if(depth)
+        depth.destroy();
+       frameset.destroy();
+      continue;
+    }
+   
+  console.log('222');
+  align.proccess(frameset);
+
+  console.log('333');
+  let frameset1 = align.waitForFrames();
+ 
+  console.log('444');
+  if (!frameset1) 
+    {
+      frameset.destroy();
+      continue;
+    }
+
+
+  let colorFrame = frameset1.colorFrame;
+  let alignedDepthFrame = frameset1.depthFrame;
 
   if (!alignedDepthFrame || !colorFrame) {
     if (alignedDepthFrame) alignedDepthFrame.destroy();
 
     if (colorFrame) colorFrame.destroy();
 
-    frameset.destroy();
+    frameset1.destroy();
     continue;
   }
-
+console.log('555');
   removeBackground(colorFrame, alignedDepthFrame, depthScale,
       depthClippingDistance);
   let w = win.width;
@@ -127,10 +155,14 @@ while (!win.shouldWindowClose()) {
   renderer.show(pipStream);
   win.endPaint();
 
+
+depth.destroy();
+  color.destroy();
   alignedDepthFrame.destroy();
   colorFrame.destroy();
   colorizedDepth.destroy();
-  frameset.destroy();
+   frameset.destroy();
+   frameset1.destroy();
 }
 
 pipe.stop();
