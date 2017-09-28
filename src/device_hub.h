@@ -30,6 +30,8 @@ namespace librealsense
 
         ~device_hub()
         {
+            _stop = true;
+            _cv.notify_all();
             _ctx->stop();
         }
 
@@ -41,6 +43,7 @@ namespace librealsense
         std::vector<std::shared_ptr<device_info>> _device_list;
         int _camera_index = 0;
         int _vid = 0;
+        bool _stop = false;
     };
 }
 

@@ -74,11 +74,12 @@ namespace librealsense
                     d = _device_list[0];
                     dev = d->create_device();
                     _camera_index = 0;
+                    return dev;
                 }
                 else
                     return nullptr;
             }
-           
+
             if(serial.size() > 0)
             {
                 auto new_serial = dev->get_info(RS2_CAMERA_INFO_SERIAL_NUMBER);
@@ -125,6 +126,9 @@ namespace librealsense
 
         if(!_cv.wait_for(lock, std::chrono::milliseconds(timeout_ms), [&]()
         {
+            if(_stop)
+                return true;
+
             res = nullptr;
             if(_device_list.size()>0)
             {
