@@ -546,14 +546,10 @@ namespace librealsense
                     {
                         throw playback_backend_exception("Recording history mismatch!", t, entity_id);
                     }
-
                     _cursors[entity_id] = _cycles[entity_id] = idx;
 
-                    auto next = pick_next_call();
-                    if (next && t != call_type::device_watcher_event && next->type == call_type::device_watcher_event)
-                    {
-                        invoke_device_changed_event();
-                    }
+                    poll_for_device_changed_event();
+
                     return calls[idx];
                 }
             }
@@ -563,19 +559,26 @@ namespace librealsense
         call* recording::pick_next_call(int id)
         {
             lock_guard<recursive_mutex> lock(_mutex);
+
             const auto idx = (_cycles[id] + 1) % static_cast<int>(calls.size());
+           // std::cout<<"pick_next_call"<<idx<<"\n";
             return &calls[idx];
+        }
+
+        void recording::poll_for_device_changed_event()
+        {
+            auto&& next = pick_next_call();
+            if (next && next->type == call_type::device_watcher_event)
+            {
+                invoke_device_changed_event();
+            }
         }
 
         call* recording::cycle_calls(call_type t, int id)
         {
 
             lock_guard<recursive_mutex> lock(_mutex);
-            auto&& next = pick_next_call();
-            if (next && next->type == call_type::device_watcher_event)
-            {
-                invoke_device_changed_event();
-            }
+
 
             for (size_t i = 1; i <= calls.size(); i++)
             {
@@ -1181,6 +1184,7 @@ namespace librealsense
 
         void playback_uvc_device::probe_and_commit( stream_profile profile, bool zero_copy,  frame_callback callback, int buffers)
         {
+
             auto stored = _rec->load_stream_profiles(_entity_id, call_type::uvc_probe_commit);
             vector<stream_profile> input{ profile };
             if (input != stored)
@@ -1474,84 +1478,92 @@ namespace librealsense
             return p;
         }
 
+        frame_object playback_uvc_device::get_frame_object_from_call(call* c)
+        {
+            vector<uint8_t> frame_blob;
+            vector<uint8_t> metadata_blob;
+
+
+            if (c->param3 == 0) // frame was not saved
+            {
+                frame_blob = vector<uint8_t>(c->param4, 0);
+            }
+            else if (c->param3 == 1)// frame was saved
+            {
+                frame_blob = _rec->load_blob(c->param2);
+            }
+            else
+            {
+                frame_blob = _compression.decode(_rec->load_blob(c->param2));
+            }
+
+            metadata_blob = _rec->load_blob(c->param5);
+            frame_object fo{ frame_blob.size(),
+                        static_cast<uint8_t>(metadata_blob.size()), // Metadata is limited to 0xff bytes by design
+                        frame_blob.data(),metadata_blob.data() };
+
+            return fo;
+        }
+
+        void playback_uvc_device::raise_callback(configuration conf, call* c)
+        {
+
+            vector<uint8_t> frame_blob;
+            vector<uint8_t> metadata_blob;
+
+
+            if (c->param3 == 0) // frame was not saved
+            {
+                frame_blob = vector<uint8_t>(c->param4, 0);
+            }
+            else if (c->param3 == 1)// frame was saved
+            {
+                frame_blob = _rec->load_blob(c->param2);
+            }
+            else
+            {
+                frame_blob = _compression.decode(_rec->load_blob(c->param2));
+            }
+
+            metadata_blob = _rec->load_blob(c->param5);
+            frame_object fo{ frame_blob.size(),
+                        static_cast<uint8_t>(metadata_blob.size()), // Metadata is limited to 0xff bytes by design
+                        frame_blob.data(),metadata_blob.data() };
+
+            //std::cout<<"raise_callback "<<p.format<<"\n";
+            conf.second(get_profile(c), fo, []() {});
+        }
+
 
         void playback_uvc_device::callback_thread()
         {
-            int next_timeout_ms = 0;
-            double prev_frame_ts = 0;
 
             while (_alive)
             {
-                auto c_ptr = _rec->pick_next_call(_entity_id);
+                lock_guard<mutex> lock(_callback_mutex);
 
-                if (c_ptr && c_ptr->type == call_type::uvc_frame)
+                for (auto&& pair : _callbacks)
                 {
-                    lock_guard<mutex> lock(_callback_mutex);
-                    for (auto&& pair : _callbacks)
+                    auto&& stream_lock = _rec->stream_lock();
+                    auto call = _rec->pick_next_call(_entity_id);
+
+                    if (call && call->type == call_type::uvc_frame && get_profile(call) == pair.first)
                     {
-                        if(get_profile(c_ptr) == pair.first)
-                        {
-                            auto c_ptr = _rec->cycle_calls(call_type::uvc_frame, _entity_id);
-
-                            if (c_ptr)
-                            {
-                                auto p = get_profile(c_ptr);
-                                if(p == pair.first)
-                                {
-                                    vector<uint8_t> frame_blob;
-                                    vector<uint8_t> metadata_blob;
-
-                                    if (prev_frame_ts > 0 &&
-                                        c_ptr->timestamp > prev_frame_ts &&
-                                        c_ptr->timestamp - prev_frame_ts <= 300)
-                                    {
-                                        prev_frame_ts = c_ptr->timestamp - prev_frame_ts;
-                                    }
-
-                                    prev_frame_ts = c_ptr->timestamp;
-
-                                    if (c_ptr->param3 == 0) // frame was not saved
-                                    {
-                                        frame_blob = vector<uint8_t>(c_ptr->param4, 0);
-                                    }
-                                    else if (c_ptr->param3 == 1)// frame was saved
-                                    {
-                                        frame_blob = _rec->load_blob(c_ptr->param2);
-                                    }
-                                    else
-                                    {
-                                        frame_blob = _compression.decode(_rec->load_blob(c_ptr->param2));
-                                    }
-
-                                    metadata_blob = _rec->load_blob(c_ptr->param5);
-                                    frame_object fo{ frame_blob.size(),
-                                                static_cast<uint8_t>(metadata_blob.size()), // Metadata is limited to 0xff bytes by design
-                                                frame_blob.data(),metadata_blob.data() };
-
-
-                                    pair.second(p, fo, []() {});
-
-                                    break;
-                                }
-                            }
-                            else
-                            {
-                                LOG_WARNING("Could not Cycle frames!");
-                            }
-
-                        }
-
+                        //std::cout<<"cycle\n";
+                        auto c_ptr = _rec->cycle_calls(call_type::uvc_frame, _entity_id);
+                        stream_lock.unlock();
+                        raise_callback(pair, c_ptr);
                     }
                 }
-                else
-                {
-                    _rec->cycle_calls(call_type::uvc_frame, _entity_id);
-                }
-                // work around - Let the other threads of playback uvc devices pull their frames
-                this_thread::sleep_for(std::chrono::milliseconds(next_timeout_ms));
+
+
+                _rec->poll_for_device_changed_event();
+                this_thread::sleep_for(std::chrono::milliseconds(0));
             }
         }
-
     }
+
+
 }
+
 

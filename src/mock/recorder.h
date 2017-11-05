@@ -295,7 +295,18 @@ namespace librealsense
             call* pick_next_call(int id = 0);
             size_t size() const { return calls.size(); }
 
+            void poll_for_device_changed_event();
+
+            std::unique_lock<std::mutex> stream_lock()
+            {
+                std::unique_lock<std::mutex> lock(_stream_mutex);
+                return std::move(lock);
+            }
+
         private:
+            friend class playback_backend;
+
+            void invoke_device_changed_event();
             std::vector<call> calls;
             std::vector<std::vector<uint8_t>> blobs;
             std::vector<uvc_device_info> uvc_device_infos;
@@ -307,14 +318,15 @@ namespace librealsense
             std::shared_ptr<playback_device_watcher> _watcher;
 
             std::recursive_mutex _mutex;
+            std::mutex _stream_mutex;
             std::shared_ptr<time_service> _ts;
 
             std::map<size_t, size_t> _cursors;
             std::map<size_t, size_t> _cycles;
 
+
             double get_current_time();
 
-            void invoke_device_changed_event();
 
             double _curr_time = 0;
         };
@@ -476,8 +488,8 @@ namespace librealsense
             std::shared_ptr<compression_algorithm> _compression;
             rs2_recording_mode _mode;
         };
-
-        typedef std::vector<std::pair<stream_profile, frame_callback>> configurations;
+        typedef std::pair<stream_profile, frame_callback> configuration;
+        typedef std::vector<configuration> configurations;
 
         class playback_device_watcher :public device_watcher
         {
@@ -498,6 +510,7 @@ namespace librealsense
             device_changed_callback _callback;
             std::recursive_mutex _mutex;
         };
+
 
         class playback_uvc_device : public uvc_device
         {
@@ -520,14 +533,15 @@ namespace librealsense
             void lock() const override;
             void unlock() const override;
             std::string get_device_location() const override;
-
             explicit playback_uvc_device(std::shared_ptr<recording> rec, int id);
 
             void callback_thread();
+            void raise_callback(configuration, call* frame);
             ~playback_uvc_device();
 
         private:
-             stream_profile get_profile(call* frame) const;
+            stream_profile get_profile(call* frame) const;
+            frame_object get_frame_object_from_call(call* call);
 
             std::shared_ptr<recording> _rec;
             int _entity_id;
@@ -578,6 +592,8 @@ namespace librealsense
             std::atomic<bool> _alive;
         };
 
+
+
         class playback_backend : public backend
         {
         public:
@@ -594,7 +610,7 @@ namespace librealsense
         private:
 
             std::shared_ptr<playback_device_watcher> _device_watcher;
-            std::shared_ptr<recording> _rec;
+            std::shared_ptr<recording> _rec; 
         };
 
         class recording_time_service : public time_service
