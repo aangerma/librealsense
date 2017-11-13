@@ -194,7 +194,7 @@ TEST_CASE("Sync sanity", "[live]") {
         disable_sensitive_options_for(dev);
 
 
-        rs2::syncer sync;
+        rs2::syncer sync(10);
         auto profiles = configure_all_supported_streams(dev);
 
         for (auto s : dev.query_sensors())
@@ -274,7 +274,7 @@ TEST_CASE("Sync different fps", "[live][!mayfail]") {
         REQUIRE(list.size());
         dev = list[0];
 
-        syncer syncer;
+        syncer syncer(10);
         disable_sensitive_options_for(dev);
 
         auto sensors = dev.query_sensors();
@@ -407,7 +407,7 @@ TEST_CASE("Sync start stop", "[live]") {
         auto dev = list[0];
         disable_sensitive_options_for(dev);
 
-        syncer sync;
+        syncer sync(10);
 
         rs2::stream_profile mode;
         auto mode_index = 0;
@@ -430,7 +430,7 @@ TEST_CASE("Sync start stop", "[live]") {
         rs2::frameset frames;
         for (auto i = 0; i < 30; i++)
         {
-            frames = sync.wait_for_frames(10000);
+            frames = sync.wait_for_frames(5000);
             REQUIRE(frames.size() > 0);
         }
 
@@ -464,7 +464,10 @@ TEST_CASE("Sync start stop", "[live]") {
         }
 
         for (auto i = 0; i < 10; i++)
-            frames = sync.wait_for_frames(10000);
+        {
+            std::cout<<i<<"\n";
+            frames = sync.wait_for_frames(5000);
+        }
 
         REQUIRE(frames.size() > 0);
         auto f = frames[0];

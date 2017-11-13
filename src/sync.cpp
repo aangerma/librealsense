@@ -3,6 +3,7 @@
 
 #include "sync.h"
 #include <functional>
+#include "environment.h"
 
 namespace librealsense
 {
@@ -22,7 +23,7 @@ namespace librealsense
                 auto matched = composite->get_frame(i);
                 ss << matched->get_stream()->get_stream_type() << " " << matched->get_frame_number() << ", "<<std::fixed<< matched->get_frame_timestamp()<<"\n";
             }
-
+             //std::cout<<ss.str()<<"\n";
             LOG_DEBUG(ss.str());
             env.matches.enqueue(std::move(f));
         });
@@ -143,6 +144,7 @@ namespace librealsense
     {
         std::stringstream s;
         s <<"DISPATCH "<<_name<<"--> "<< f->get_stream()->get_stream_type() << " " << f->get_frame_number() << ", "<<std::fixed<< f->get_frame_timestamp()<<"\n";
+        //std::cout<<s.str()<<"\n";
         LOG_DEBUG(s.str());
 
         clean_inactive_streams(f);
@@ -487,7 +489,7 @@ namespace librealsense
 
     void timestamp_composite_matcher::update_last_arrived(frame_holder& f, matcher* m)
     {
-        _last_arrived[m] = std::chrono::duration<double, std::milli>(std::chrono::system_clock::now().time_since_epoch()).count();
+        _last_arrived[m] = environment::get_instance().get_time_service()->get_time();
     }
 
     void timestamp_composite_matcher::update_next_expected(const frame_holder & f)
@@ -504,7 +506,7 @@ namespace librealsense
     void timestamp_composite_matcher::clean_inactive_streams(frame_holder& f)
     {
         std::vector<stream_id> dead_matchers;
-        auto now = std::chrono::duration<double, std::milli>(std::chrono::system_clock::now().time_since_epoch()).count();
+        auto now = environment::get_instance().get_time_service()->get_time();
         for(auto m: _matchers)
         {
             if(_last_arrived[m.second.get()] && (now - _last_arrived[m.second.get()]) > 500)

@@ -1511,27 +1511,29 @@ namespace librealsense
             vector<uint8_t> frame_blob;
             vector<uint8_t> metadata_blob;
 
-
-            if (c->param3 == 0) // frame was not saved
+            if(c)
             {
-                frame_blob = vector<uint8_t>(c->param4, 0);
-            }
-            else if (c->param3 == 1)// frame was saved
-            {
-                frame_blob = _rec->load_blob(c->param2);
-            }
-            else
-            {
-                frame_blob = _compression.decode(_rec->load_blob(c->param2));
-            }
+                if (c->param3 == 0) // frame was not saved
+                {
+                    frame_blob = vector<uint8_t>(c->param4, 0);
+                }
+                else if (c->param3 == 1)// frame was saved
+                {
+                    frame_blob = _rec->load_blob(c->param2);
+                }
+                else
+                {
+                    frame_blob = _compression.decode(_rec->load_blob(c->param2));
+                }
 
-            metadata_blob = _rec->load_blob(c->param5);
-            frame_object fo{ frame_blob.size(),
-                        static_cast<uint8_t>(metadata_blob.size()), // Metadata is limited to 0xff bytes by design
-                        frame_blob.data(),metadata_blob.data() };
+                metadata_blob = _rec->load_blob(c->param5);
+                frame_object fo{ frame_blob.size(),
+                            static_cast<uint8_t>(metadata_blob.size()), // Metadata is limited to 0xff bytes by design
+                            frame_blob.data(),metadata_blob.data() };
 
-            //std::cout<<"raise_callback "<<p.format<<"\n";
-            conf.second(get_profile(c), fo, []() {});
+                //std::cout<<"raise_callback "<<p.format<<"\n";
+                conf.second(get_profile(c), fo, []() {});
+            }
         }
 
 
