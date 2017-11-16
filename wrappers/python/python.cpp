@@ -467,7 +467,8 @@ PYBIND11_PLUGIN(NAME) {
               .def("map_to", &rs2::pointcloud::map_to, "mapped"_a);
 
     py::class_<rs2::syncer> syncer(m, "syncer");
-    syncer.def(py::init<>())
+    syncer.def(py::init<unsigned int>())
+          .def(py::init<>())
           .def("wait_for_frames", &rs2::syncer::wait_for_frames, "Wait until a coherent set "
                "of frames becomes available", "timeout_ms"_a = 5000)
           .def("poll_for_frames", [](const rs2::syncer &self)

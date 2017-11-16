@@ -255,13 +255,14 @@ namespace rs2
     class syncer
     {
     public:
-        syncer(int queue_size = 1)
+        syncer():syncer(1){}
+
+        syncer(unsigned int queue_size)
             :_results(queue_size)
         {
             _sync.start(_results);
 
         }
-
         /**
         * Wait until coherent set of frames becomes available
         * \param[in] timeout_ms   Max time in milliseconds to wait until an exception will be thrown
