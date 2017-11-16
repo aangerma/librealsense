@@ -23,7 +23,6 @@ namespace librealsense
                 auto matched = composite->get_frame(i);
                 ss << matched->get_stream()->get_stream_type() << " " << matched->get_frame_number() << ", "<<std::fixed<< matched->get_frame_timestamp()<<"\n";
             }
-             //std::cout<<ss.str()<<"\n";
             LOG_DEBUG(ss.str());
             env.matches.enqueue(std::move(f));
         });
@@ -144,7 +143,6 @@ namespace librealsense
     {
         std::stringstream s;
         s <<"DISPATCH "<<_name<<"--> "<< f->get_stream()->get_stream_type() << " " << f->get_frame_number() << ", "<<std::fixed<< f->get_frame_timestamp()<<"\n";
-        //std::cout<<s.str()<<"\n";
         LOG_DEBUG(s.str());
 
         clean_inactive_streams(f);
