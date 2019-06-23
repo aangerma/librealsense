@@ -48,7 +48,9 @@ int main(int argc, char* argv[])
 {
     CmdLine cmd("librealsense rs-fw-logger example tool", ' ', RS2_API_VERSION_STR);
     ValueArg<string> xml_arg("l", "load", "Full file path of HW Logger Events XML file", false, "", "Load HW Logger Events XML file");
+    ValueArg<string> specific_SN_arg("n", "serialNum", "Serial Number can be obtain from rs-enumerate-devices example", false, "", "Select a device serial number to work with");
     cmd.add(xml_arg);
+    cmd.add(specific_SN_arg);
     cmd.parse(argc, argv);
 
     log_to_file(RS2_LOG_SEVERITY_WARN, "librealsense.log");
@@ -70,13 +72,64 @@ int main(int argc, char* argv[])
     context ctx;
     device_hub hub(ctx);
 
+    rs2::device_list all_device_list = ctx.query_devices();
+    if (all_device_list.size() == 0) {
+        std::cout << "\nLibrealsense is not detecting any devices" << std::endl;
+        return EXIT_FAILURE;
+    };
+
+   
+
     while (true)
     {
         try
         {
-            cout << "\nWaiting for RealSense device to connect...\n";
-            auto dev = hub.wait_for_device();
-            cout << "RealSense device was connected...\n";
+            std::vector<rs2::device> rs_device_list;
+            //Ensure that diviceList only has realsense devices in it. tmpList contains webcams as well
+            for (size_t i = 0; i < all_device_list.size(); i++) {
+                try {
+                    all_device_list[i].get_info(RS2_CAMERA_INFO_FIRMWARE_VERSION);
+                    rs_device_list.push_back(all_device_list[i]);
+                }
+                catch (...) {
+                    continue;
+                }
+            }
+            auto num_rs_devices = rs_device_list.size();
+            if (rs_device_list.size() == 0)
+            {
+                std::cout << "\nLibrealsense is not detecting any Realsense cameras" << std::endl;
+                return EXIT_FAILURE;
+            }
+
+            rs2::device dev;
+            auto device_not_found = true;
+
+            if (specific_SN_arg.isSet())
+            {
+                auto desired_sn = specific_SN_arg.getValue();
+                for (size_t i = 0; i < num_rs_devices; i++)
+                {
+                    std::string device_sn = std::string(rs_device_list[i].get_info(RS2_CAMERA_INFO_SERIAL_NUMBER));
+                    if (device_sn.compare(desired_sn) == 0) { //std::compare returns 0 if the strings are the same
+                        dev = rs_device_list[i];
+                        device_not_found = false;
+                        std::cout << "\nDevice with SN:  " << device_sn << " has loaded.\n";
+                        break;
+                    }
+                }
+                if (device_not_found) {
+                    std::cout << "\nGiven device serial number doesn't exist! desired serial number=" << desired_sn << std::endl;
+                    return EXIT_FAILURE;
+                }
+            }
+            if (device_not_found)
+            {
+                cout << "\nWaiting for RealSense device to connect...\n";
+                dev = hub.wait_for_device();
+                cout << "RealSense device was connected...\n";
+            }
+            
 
             vector<uint8_t> input;
             auto str_op_code = dev.get_info(RS2_CAMERA_INFO_DEBUG_OP_CODE);
