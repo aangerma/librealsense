@@ -127,8 +127,13 @@ namespace librealsense
                 auto model_world = intrinsic->resolution.intrinsic_resolution[i].world.pinhole_cam_model;
                 auto model_raw = intrinsic->resolution.intrinsic_resolution[i].raw.pinhole_cam_model;
 
-                if (model_world.height == profile.height && model_world.width == profile.width)
+                if (model_world.height == profile.width && model_world.width == profile.height)
+                {
                     cam_model = model_world;
+                    cam_model.height = model_world.width;
+                    cam_model.width = model_world.height;
+                }
+
                 else if (model_raw.height == profile.height && model_raw.width == profile.width)
                     cam_model = model_raw;
                 else

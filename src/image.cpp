@@ -181,17 +181,15 @@ namespace librealsense
     template<size_t SIZE>
     void align_l500_image(byte * const dest[], const byte * source, int width, int height)
     {
-        auto width_out = height;
-        auto height_out = width;
-
         auto out = dest[0];
-        for (int i = 0; i < height; ++i)
+        for (int i = 0; i < height-1; ++i)
         {
             auto row_offset = i * width;
             for (int j = 0; j < width; ++j)
             {
-                auto out_index = (((height_out - j) * width_out) - i - 1) * SIZE;
-                librealsense::copy((void*)(&out[out_index]), &(source[(row_offset + j) * SIZE]), SIZE);
+                auto out_index = ((i * width) + j ) * SIZE;
+                auto in_index = (((i+1) * width) - 1-j ) * SIZE;
+                librealsense::copy((void*)(&out[out_index]), &(source[in_index]), SIZE);
             }
         }
     }
@@ -1034,7 +1032,7 @@ namespace librealsense
 
     resolution l500_confidence_resolution(resolution res)
     {
-        return resolution{ res.height , res.width * 2 };
+        return resolution{ res.width*2 , res.height };
     }
 
     //////////////////////////
@@ -1055,12 +1053,9 @@ namespace librealsense
                                                                                { true,                &unpack_yuy2<RS2_FORMAT_BGR8 >,                { { RS2_STREAM_COLOR,          RS2_FORMAT_BGR8 } } },
                                                                                { true,                &unpack_yuy2<RS2_FORMAT_BGRA8>,                { { RS2_STREAM_COLOR,          RS2_FORMAT_BGRA8 } } } } };
 
-    const native_pixel_format pf_confidence_l500          = { 'C   ', 1, 1, {  { true,                &unpack_confidence,                            { { RS2_STREAM_CONFIDENCE,     RS2_FORMAT_RAW8, l500_confidence_resolution } } },
-                                                                               { requires_processing, &copy_pixels<1>,                               { { RS2_STREAM_CONFIDENCE,     RS2_FORMAT_RAW8 } } } } };
-    const native_pixel_format pf_z16_l500                 = { 'Z16 ', 1, 2, {  { true,                &align_l500_image_optimized<2>,              { { RS2_STREAM_DEPTH,          RS2_FORMAT_Z16,  rotate_resolution } } },
-                                                                               { requires_processing, &copy_pixels<2>,                               { { RS2_STREAM_DEPTH,          RS2_FORMAT_Z16                    } } } } };
-    const native_pixel_format pf_y8_l500                  = { 'GREY', 1, 1, {  { true,                &align_l500_image_optimized<1>,              { { RS2_STREAM_INFRARED,       RS2_FORMAT_Y8,   rotate_resolution } } },
-                                                                               { requires_processing, &copy_pixels<1>,                               { { RS2_STREAM_INFRARED,       RS2_FORMAT_Y8 } } } } };
+    const native_pixel_format pf_confidence_l500          = { 'C   ', 1, 1, {  { true,                &unpack_confidence,                            { { RS2_STREAM_CONFIDENCE,     RS2_FORMAT_RAW8, l500_confidence_resolution } } } } };
+    const native_pixel_format pf_z16_l500                 = { 'Z16 ', 1, 2, {  { true,                &align_l500_image<2>,              { { RS2_STREAM_DEPTH,          RS2_FORMAT_Z16 } } }} };
+    const native_pixel_format pf_y8_l500                  = { 'GREY', 1, 1, {  { true,                &align_l500_image<1>,              { { RS2_STREAM_INFRARED,       RS2_FORMAT_Y8} } }} };
     const native_pixel_format pf_y8                       = { 'GREY', 1, 1, {  { requires_processing, &copy_pixels<1>,                             { { { RS2_STREAM_INFRARED, 1 },  RS2_FORMAT_Y8  } } } } };
     const native_pixel_format pf_y16                      = { 'Y16 ', 1, 2, {  { true,                &unpack_y16_from_y16_10,                     { { { RS2_STREAM_INFRARED, 1 },  RS2_FORMAT_Y16 } } } } };
     const native_pixel_format pf_y8i                      = { 'Y8I ', 1, 2, {  { true,                &unpack_y8_y8_from_y8i,                      { { { RS2_STREAM_INFRARED, 1 },  RS2_FORMAT_Y8  },
