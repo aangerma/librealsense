@@ -39,7 +39,7 @@ namespace librealsense
                 float y = (pixel[1] - _depth_intrinsics->ppy) / _depth_intrinsics->fy;
 
 
-                if (_depth_intrinsics->model == RS2_DISTORTION_INVERSE_BROWN_CONRADY)
+               /* if (_depth_intrinsics->model == RS2_DISTORTION_INVERSE_BROWN_CONRADY)
                 {
                     float r2 = x * x + y * y;
                     float f = 1 + _depth_intrinsics->coeffs[0] * r2 + _depth_intrinsics->coeffs[1] * r2*r2 + _depth_intrinsics->coeffs[4] * r2*r2*r2;
@@ -47,7 +47,7 @@ namespace librealsense
                     float uy = y * f + 2 * _depth_intrinsics->coeffs[3] * x*y + _depth_intrinsics->coeffs[2] * (r2 + 2 * y*y);
                     x = ux;
                     y = uy;
-                }
+                } */
 
                 _pre_compute_map_x[h*_depth_intrinsics->width + w] = x;
                 _pre_compute_map_y[h*_depth_intrinsics->width + w] = y;
