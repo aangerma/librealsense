@@ -49,7 +49,7 @@ public:
         auto since_last = _started - lasts[key];
         auto sec = std::chrono::duration_cast<std::chrono::seconds>(since_last).count();
 
-        if (sec >= 2)
+        if (sec >= 5)
         {
             if (!profiler::instance().scope)
             {

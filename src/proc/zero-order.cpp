@@ -4,6 +4,7 @@
 #include "zero-order.h"
 #include <iomanip>
 #include "l500/l500-depth.h"
+#include "../common/tiny-profiler.h"
 
 const double METER_TO_MM = 1000;
 
@@ -22,141 +23,7 @@ namespace librealsense
         RS2_OPTION_FILTER_ZO_THRESHOLD_SCALE = static_cast<rs2_option>(RS2_OPTION_COUNT + 8) /**< threshold scale used by zero order filter */
     };
 
-    double get_pixel_rtd(const rs2::vertex& v, int baseline)
-    {
-        auto x = (double)v.x*METER_TO_MM;
-        auto y = (double)v.y*METER_TO_MM;
-        auto z = (double)v.z*METER_TO_MM;
-       
-        auto rtd = sqrt(x*x + y*y + z*z) + sqrt((x - baseline) *(x - baseline) + y*y + z*z);
-        return v.z ? rtd : 0;
-    }
-
-    void z2rtd(const rs2::vertex* vertices, double* rtd, const rs2_intrinsics& intrinsics, int baseline)
-    {
-        for (auto i = 0;i < intrinsics.height*intrinsics.width; i++)
-        {
-            rtd[i] = get_pixel_rtd(vertices[i], baseline);           
-        }
-    }
-    
-    template<typename T>
-    std::vector <T> get_zo_point_values(const T* frame_data_in, const rs2_intrinsics& intrinsics, int zo_point_x, int zo_point_y, int patch_r)
-    {
-        std::vector<T> values;
-        values.reserve((patch_r + 2) *(patch_r + 2));
-
-        for (auto i = zo_point_y - 1 - patch_r; i <= (zo_point_y + patch_r) && i < intrinsics.height; i++)
-        {
-            for (auto j = (zo_point_x - 1 - patch_r); j <= (zo_point_x + patch_r) && i < intrinsics.width; j++)
-            {
-                values.push_back(frame_data_in[i*intrinsics.width + j]);
-            }
-        }
-
-        return values;
-    }
-
-    template<typename T>
-    T get_zo_point_value(std::vector<T>& values)
-    {
-        std::sort(values.begin(), values.end());
-
-        if ((values.size()) % 2 == 0)
-        {
-            return (values[values.size() / 2 - 1] + values[values.size() / 2]) / 2;
-        }
-        else if (values.size() > 0)
-            return values[values.size() / 2];
-
-        return 0;
-    }
-
-    bool try_get_zo_rtd_ir_point_values(const double* rtd, const uint16_t* depth_data_in, const uint8_t* ir_data, 
-        const rs2_intrinsics& intrinsics, const zero_order_options& options, int zo_point_x, int zo_point_y,
-        double *rtd_zo_value, uint8_t* ir_zo_data)
-    {
-        if (zo_point_x - options.patch_size < 0 || zo_point_x + options.patch_size >= intrinsics.width ||
-            zo_point_y - options.patch_size < 0 || zo_point_y + options.patch_size >= intrinsics.height)
-            return false;
-
-        auto values_rtd = get_zo_point_values(rtd, intrinsics, zo_point_x, zo_point_y, options.patch_size);
-        auto values_ir = get_zo_point_values(ir_data, intrinsics, zo_point_x, zo_point_y, options.patch_size);
-        auto values_z = get_zo_point_values(depth_data_in, intrinsics, zo_point_x, zo_point_y, options.patch_size);
-
-        for (auto i = 0; i < values_rtd.size(); i++)
-        {
-            if ((values_z[i] / 8.0) > options.z_max || (values_ir[i] < options.ir_min))
-            {
-                values_rtd[i] = 0;  
-                values_ir[i] = 0;
-            }       
-        }
-
-        values_rtd.erase(std::remove_if(values_rtd.begin(), values_rtd.end(), [](double val)
-        {
-            return val == 0;
-        }), values_rtd.end());
-
-        values_ir.erase(std::remove_if(values_ir.begin(), values_ir.end(), [](uint8_t val)
-        {
-            return val == 0;
-        }), values_ir.end());
-
-        if (values_rtd.size() == 0 || values_rtd.size() == 0)
-            return false;
-
-        *rtd_zo_value = get_zo_point_value(values_rtd);
-        *ir_zo_data = get_zo_point_value(values_ir);
-
-        return true;
-    }
-
-    template<class T>
-    void detect_zero_order(const double * rtd, const uint16_t* depth_data_in, const uint8_t* ir_data, T zero_pixel,
-       const rs2_intrinsics& intrinsics, const zero_order_options& options,
-       float zo_value, uint8_t iro_value)
-    {
-        const int ir_dynamic_range = 256;
-
-        auto r = (double)std::exp((ir_dynamic_range / 2.0 + options.threshold_offset - iro_value) / (double)options.threshold_scale);
-
-        auto res = (1 + r);
-        auto i_threshold_relative = (double)options.ir_threshold / res;
-        for (auto i = 0; i < intrinsics.height*intrinsics.width; i++)
-        {
-            auto rtd_val = rtd[i];
-            auto ir_val = ir_data[i];
-
-            auto zero = (depth_data_in[i] > 0) && (ir_val < i_threshold_relative) &&
-                (rtd_val > (zo_value - options.rtd_low_threshold)) && (rtd_val < (zo_value + options.rtd_high_threshold));
-
-            zero_pixel(i, zero);
-        }
-    }
-
-    template<class T>
-    bool zero_order_invalidation(const uint16_t * depth_data_in, const uint8_t * ir_data, T zero_pixel,
-        const rs2::vertex* vertices,
-        rs2_intrinsics intrinsics,
-        const zero_order_options& options, int zo_point_x, int zo_point_y)
-    {
-        std::vector<double> rtd(intrinsics.height*intrinsics.width);
-        z2rtd(vertices, rtd.data(), intrinsics, options.baseline);
-        double rtd_zo_value;
-        uint8_t ir_zo_value;
-
-        if (try_get_zo_rtd_ir_point_values(rtd.data(), depth_data_in, ir_data, intrinsics, 
-            options,zo_point_x, zo_point_y, &rtd_zo_value, &ir_zo_value))
-        {
-            detect_zero_order(rtd.data(), depth_data_in, ir_data, zero_pixel, intrinsics,
-                options, rtd_zo_value, ir_zo_value);
-            return true;
-        }
-        return false;
-    }
-
-    zero_order::zero_order()
+    zero_order::zero_order(bool optimaized)
        : generic_processing_block("Zero Order Fix"), _first_frame(true)
     {
         auto ir_threshold = std::make_shared<ptr_option<uint8_t>>(
@@ -296,6 +163,11 @@ namespace librealsense
                     << "Unsupported patch size value " << val << " is out of range.");
         });
         register_option(static_cast<rs2_option>(RS2_OPTION_FILTER_ZO_THRESHOLD_SCALE), scale);
+
+        if (optimaized)
+            _rtd_calc = std::make_shared<rtd_calc_optimaized>();
+        else
+            _rtd_calc = std::make_shared<rtd_calc_base>();
     }
 
     const char* zero_order::get_option_name(rs2_option option) const
@@ -378,6 +250,7 @@ namespace librealsense
 
     rs2::frame zero_order::process_frame(const rs2::frame_source& source, const rs2::frame& f)
     {
+        scoped_timer t("process_frame");
         std::vector<rs2::frame> result;
 
         if (_first_frame)
@@ -419,29 +292,14 @@ namespace librealsense
             }
             confidence_out = source.allocate_video_frame(_source_profile_confidence, confidence_frame, 0, 0, 0, 0, RS2_EXTENSION_VIDEO_FRAME);
         }
+
         auto depth_intrinsics = depth_frame.get_profile().as<rs2::video_stream_profile>().get_intrinsics();
-
-        auto depth_output = (uint16_t*)depth_out.get_data();
-        uint8_t* confidence_output;
-
-        if (confidence_frame)
-        {
-            confidence_output = (uint8_t*)confidence_out.get_data();
-        }
 
         auto zo = get_zo_point(depth_frame);
 
-        if (zero_order_invalidation((const uint16_t*)depth_frame.get_data(),
-            (const uint8_t*)ir_frame.get_data(),
-            [&](int index, bool zero) 
-        {
-            depth_output[index] = zero ? 0 : ((uint16_t*)depth_frame.get_data())[index];
-
-            if (confidence_frame)
-            {
-                confidence_output[index] = zero ? 0 : ((uint8_t*)confidence_frame.get_data())[index];
-            }
-        },
+        scoped_timer t1("zo_point");
+        if (zero_order_invalidation(depth_frame,
+            ir_frame, confidence_frame, depth_out, confidence_out,
             points.get_vertices(),
             depth_intrinsics,
             _options, zo.first, zo.second))
@@ -458,7 +316,146 @@ namespace librealsense
             if (confidence_frame)
                 result.push_back(confidence_frame);
         }
+
         return source.allocate_composite_frame(result);
+    }
+
+
+    bool zero_order::try_get_zo_rtd_ir_point_values(const float * rtd, const uint16_t * depth_data_in, const uint8_t * ir_data, const rs2_intrinsics & intrinsics, const zero_order_options & options, int zo_point_x, int zo_point_y, float * rtd_zo_value, uint8_t * ir_zo_data)
+    {
+        //scoped_timer t("try_get_zo_rtd_ir_point_values");
+        if (zo_point_x - options.patch_size < 0 || zo_point_x + options.patch_size >= intrinsics.width ||
+            zo_point_y - options.patch_size < 0 || zo_point_y + options.patch_size >= intrinsics.height)
+            return false;
+
+        auto values_rtd = get_zo_point_values(rtd, intrinsics, zo_point_x, zo_point_y, options.patch_size);
+        auto values_ir = get_zo_point_values(ir_data, intrinsics, zo_point_x, zo_point_y, options.patch_size);
+        auto values_z = get_zo_point_values(depth_data_in, intrinsics, zo_point_x, zo_point_y, options.patch_size);
+
+        for (auto i = 0; i < values_rtd.size(); i++)
+        {
+            if ((values_z[i] / 8.0) > options.z_max || (values_ir[i] < options.ir_min))
+            {
+                values_rtd[i] = 0;
+                values_ir[i] = 0;
+            }
+        }
+
+        values_rtd.erase(std::remove_if(values_rtd.begin(), values_rtd.end(), [](double val)
+        {
+            return val == 0;
+        }), values_rtd.end());
+
+        values_ir.erase(std::remove_if(values_ir.begin(), values_ir.end(), [](uint8_t val)
+        {
+            return val == 0;
+        }), values_ir.end());
+
+        if (values_rtd.size() == 0 || values_rtd.size() == 0)
+            return false;
+
+        *rtd_zo_value = get_zo_point_value(values_rtd);
+        *ir_zo_data = get_zo_point_value(values_ir);
+
+        return true;
+    }
+
+    void zero_order::detect_zero_order(const float * rtd, const rs2::frame depth_in, const rs2::frame ir_in, const rs2::frame confidence_in, 
+        const rs2::frame depth_out, const rs2::frame confidence_out, const rs2_intrinsics & intrinsics, 
+        const zero_order_options & options, float zo_value, uint8_t iro_value)
+    {
+        //scoped_timer t("detect_zero_order");
+        const int ir_dynamic_range = 256;
+
+        auto r = (float)std::exp((ir_dynamic_range / 2.0 + options.threshold_offset - iro_value) / (float)options.threshold_scale);
+
+        auto res = (1 + r);
+        auto i_threshold_relative = options.ir_threshold / res;
+        auto ir_data = (uint8_t*)ir_in.get_data();
+        auto depth_data = (uint16_t*)depth_in.get_data();
+        auto confidence_data = (uint8_t*)confidence_in.get_data();
+
+        auto depth_data_out = (uint16_t*)depth_out.get_data();
+
+        auto confidence_data_out = (uint8_t*)confidence_out.get_data();
+
+        auto has_confidence = confidence_out ? true : false;
+
+        auto s = intrinsics.height*intrinsics.width;
+
+        auto bounds = _rtd_calc->get_bounds(zo_value, _options.rtd_high_threshold, _options.rtd_low_threshold);
+
+        int miss_validations = 0;
+        int error_validations = 0;
+        int total_validations = 0;
+
+        for (auto i = 0; i < s; i++)
+        {
+            auto rtd_val = rtd[i];
+            auto ir_val = ir_data[i];
+
+            if (depth_data[i] > 0 && ir_val < i_threshold_relative &&
+                rtd_val > bounds.first && rtd_val < bounds.second)
+            {
+              /*  if (!(depth_data[i] > 0 && ir_val < i_threshold_relative &&
+                    rtd_val2 > lawer_bound2 && rtd_val2 < upper_bound2))
+                {
+                    miss_validations++;
+                }
+                total_validations++;*/
+                depth_data_out[i] = 0;
+
+                if (has_confidence)
+                    confidence_data_out[i] = 0;
+            }
+            else
+            {
+               /* if (depth_data[i] > 0 && ir_val < i_threshold_relative &&
+                    rtd_val2 > lawer_bound2 && rtd_val2 < upper_bound2)
+                {
+                    error_validations++;
+                }*/
+                depth_data_out[i] = depth_data[i];
+                if (has_confidence)
+                    confidence_data_out[i] = confidence_data[i];
+            }
+        }
+        //std::cout << "miss_validations " << miss_validations << " error_validations " << error_validations << " total_validations "<< total_validations<<" "<< (float)miss_validations/ (float)total_validations<<std::endl;
+    }
+
+    bool zero_order::zero_order_invalidation(const rs2::frame depth_in, const rs2::frame ir_in, const rs2::frame confidence_in,
+        const rs2::frame depth_out, const rs2::frame confidence_out,
+        const rs2::vertex * vertices, rs2_intrinsics intrinsics,
+        const zero_order_options & options,
+        int zo_point_x, int zo_point_y)
+    {
+        scoped_timer t("zero_order_invalidation");
+
+        static std::vector<float> rtd(intrinsics.height*intrinsics.width);
+        static std::vector<float> rtd2(intrinsics.height*intrinsics.width);
+
+        float rtd_zo_value, rtd_zo_value2;
+        uint8_t ir_zo_value;
+
+        _rtd_calc->z2rtd(vertices, rtd.data(), intrinsics, options.baseline);
+
+        scoped_timer t1("zero_order_invalidation 2");
+
+        try_get_zo_rtd_ir_point_values(rtd2.data(), (const uint16_t*)depth_in.get_data(), (const uint8_t*)ir_in.get_data(), intrinsics,
+            options, zo_point_x, zo_point_y, &rtd_zo_value2, &ir_zo_value);
+        try_get_zo_rtd_ir_point_values(rtd.data(), (const uint16_t*)depth_in.get_data(), (const uint8_t*)ir_in.get_data(), intrinsics,
+            options, zo_point_x, zo_point_y, &rtd_zo_value, &ir_zo_value);
+
+        if (try_get_zo_rtd_ir_point_values(rtd2.data(), (const uint16_t*)depth_in.get_data(), (const uint8_t*)ir_in.get_data(), intrinsics,
+            options, zo_point_x, zo_point_y, &rtd_zo_value2, &ir_zo_value) ||
+            try_get_zo_rtd_ir_point_values(rtd.data(), (const uint16_t*)depth_in.get_data(), (const uint8_t*)ir_in.get_data(), intrinsics,
+            options, zo_point_x, zo_point_y, &rtd_zo_value, &ir_zo_value))
+        {
+            detect_zero_order(rtd.data(), depth_in, ir_in, confidence_in, depth_out, confidence_out, intrinsics,
+                options, rtd_zo_value, ir_zo_value);
+            return true;
+        }
+        return false;
     }
 
     bool zero_order::should_process(const rs2::frame& frame)
@@ -497,5 +494,55 @@ namespace librealsense
         }
 
         return source.allocate_composite_frame(results);
+    }
+
+    void rtd_calc_base::z2rtd(const rs2::vertex * vertices, float * rtd, const rs2_intrinsics & intrinsics, int baseline)
+    {
+        scoped_timer t("z2rtd");
+        for (auto i = 0;i < intrinsics.height*intrinsics.width; i++)
+        {
+            rtd[i] = get_pixel_rtd(vertices[i], baseline);
+        }
+    }
+
+    float rtd_calc_base::get_pixel_rtd(const rs2::vertex& v, int baseline)
+    {
+        auto x = v.x*METER_TO_MM;
+        auto y = v.y*METER_TO_MM;
+        auto z = v.z*METER_TO_MM;
+
+        auto rtd = sqrtf(x * x + y * y + z * z) + sqrtf((x - baseline) * (x - baseline) + y * y + z * z);
+
+        return v.z ? rtd : 0;
+    }
+
+    std::pair<float, float> rtd_calc_base::get_bounds(float zo_value, uint16_t rtd_low_threshold, uint16_t rtd_high_threshold)
+    {
+        return std::pair<float, float>(zo_value + rtd_low_threshold, zo_value + rtd_high_threshold);
+    }
+
+    float rtd_calc_optimaized::get_pixel_rtd(const rs2::vertex& v, int baseline)
+    {
+        auto x = v.x*METER_TO_MM;
+        auto y = v.y*METER_TO_MM;
+        auto z = v.z*METER_TO_MM;
+
+        auto rtd = 4 * ((x - baseline / 2)*(x - baseline / 2) + y * y + z * z);
+        return v.z ? rtd : 0;
+    }
+
+    void rtd_calc_optimaized::z2rtd(const rs2::vertex * vertices, float * rtd, const rs2_intrinsics & intrinsics, int baseline)
+    {
+        scoped_timer t("rtd_calc_optimaized");
+        for (auto i = 0;i < intrinsics.height*intrinsics.width; i++)
+        {
+            rtd[i] = get_pixel_rtd(vertices[i], baseline);
+        }
+    }
+
+    std::pair<float, float> rtd_calc_optimaized::get_bounds(float zo_value, uint16_t rtd_low_threshold, uint16_t rtd_high_threshold)
+    {
+        return std::pair<float, float>((sqrt(zo_value) - rtd_low_threshold)*(sqrt(zo_value) - rtd_low_threshold),
+            (sqrt(zo_value) + rtd_high_threshold)*(sqrt(zo_value) + rtd_high_threshold));
     }
 }

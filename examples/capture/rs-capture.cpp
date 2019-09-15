@@ -17,18 +17,29 @@ int main(int argc, char * argv[]) try
     // Declare rates printer for showing streaming rates of the enabled streams.
     rs2::rates_printer printer;
 
+    rs2::config c;
+    c.enable_stream(RS2_STREAM_DEPTH, 1024, 768);
+    c.enable_stream(RS2_STREAM_INFRARED, 1024, 768);
+    c.enable_stream(RS2_STREAM_CONFIDENCE, 1024, 768);
     // Declare RealSense pipeline, encapsulating the actual device and sensors
     rs2::pipeline pipe;
 
     // Start streaming with default recommended configuration
     // The default video configuration contains Depth and Color streams
     // If a device is capable to stream IMU data, both Gyro and Accelerometer are enabled by default
-    pipe.start();
+    auto s = pipe.start(c);
+    for (auto sen : s.get_device().query_sensors())
+    {
+        if (sen.supports(RS2_OPTION_VISUAL_PRESET))
+            sen.set_option(RS2_OPTION_VISUAL_PRESET, 2);
+    }
+    
+    rs2::zero_order_invalidation  zo;
 
     while (app) // Application still alive?
     {
-        rs2::frameset data = pipe.wait_for_frames().    // Wait for next set of frames from the camera
-                             apply_filter(printer).     // Print each enabled stream frame rate
+        rs2::frameset data = pipe.wait_for_frames().apply_filter(zo).    // Wait for next set of frames from the camera
+                             //apply_filter(printer).     // Print each enabled stream frame rate
                              apply_filter(color_map);   // Find and colorize the depth data
 
         // The show method, when applied on frameset, break it to frames and upload each frame into a gl textures
