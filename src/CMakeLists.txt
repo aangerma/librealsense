@@ -12,7 +12,7 @@ include(${_rel_path}/res/CMakeLists.txt)
 include(${_rel_path}/pipeline/CMakeLists.txt)
 include(${_rel_path}/usb/CMakeLists.txt)
 include(${_rel_path}/fw-update/CMakeLists.txt)
-
+include(${_rel_path}/libyuv/CMakeLists.txt)
 message(STATUS "using ${BACKEND}")
 
 if(UNIX OR (ANDROID_NDK_TOOLCHAIN_INCLUDED AND (${BACKEND} STREQUAL RS2_USE_V4L2_BACKEND)))

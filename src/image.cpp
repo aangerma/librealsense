@@ -4,6 +4,8 @@
 #include "image.h"
 #include "image-avx.h"
 #include "types.h"
+#include "libyuv/include/libyuv.h"
+#include "../common/tiny-profiler.h"
 
 #define STB_IMAGE_STATIC
 #define STB_IMAGE_IMPLEMENTATION
@@ -349,7 +351,17 @@ namespace librealsense
     // It is expected that all branching outside of the loop control variable will be removed due to constant-folding.
     template<rs2_format FORMAT> void unpack_yuy2(byte * const d[], const byte * s, int width, int height, int actual_size)
     {
+        //scoped_timer t("unpack_yuy2");
         auto n = width * height;
+        scoped_timer t("unpack_yuy2");
+        static std::vector<uint8_t> tmp(width * height * 4);
+        
+            
+            
+            libyuv::YUY2ToARGB(s, width * 2, tmp.data(), width * 4, width, height);
+        
+        libyuv::ARGBToRAW(tmp.data(), width * 4, d[0], width * 3, width, height);
+        return;
         assert(n % 16 == 0); // All currently supported color resolutions are multiples of 16 pixels. Could easily extend support to other resolutions by copying final n<16 pixels into a zero-padded buffer and recursively calling self for final iteration.
 #ifdef RS2_USE_CUDA
         rscuda::unpack_yuy2_cuda<FORMAT>(d, s, n);
