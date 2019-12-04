@@ -34,7 +34,7 @@ namespace librealsense
          * \return       a shared pointer to the device_interface that satisfies the search criteria. In case the request was not
          * resloved the call will throw an exception
          */
-        std::shared_ptr<device_interface> wait_for_device(const std::chrono::milliseconds& timeout = std::chrono::milliseconds(std::chrono::hours(1)),
+        std::shared_ptr<device_interface> wait_for_device(const std::chrono::milliseconds& timeout = std::chrono::milliseconds(100),
                                                           bool loop_through_devices = true,
                                                           const std::string& serial = "");
 
