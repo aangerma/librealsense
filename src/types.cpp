@@ -187,6 +187,7 @@ namespace librealsense
             CASE(L500_DEPTH_SENSOR)
             CASE(TM2_SENSOR)
             CASE(AUTO_CALIBRATED_DEVICE)
+            CASE(SERIALIZABLE_DEVICE)
         default: assert(!is_valid(value)); return UNKNOWN_VALUE;
         }
 #undef CASE
@@ -290,6 +291,8 @@ namespace librealsense
             CASE(LED_POWER)
             CASE(ZERO_ORDER_ENABLED)
             CASE(ENABLE_MAP_PRESERVATION)
+            CASE(APD)
+            CASE(ENVIRONMENT)
         default: assert(!is_valid(value)); return UNKNOWN_VALUE;
         }
 #undef CASE

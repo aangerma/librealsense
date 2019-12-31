@@ -84,6 +84,8 @@ extern "C" {
         RS2_OPTION_LED_POWER, /**< Power of the LED (light emitting diode), with 0 meaning LED off*/
         RS2_OPTION_ZERO_ORDER_ENABLED, /**< Toggle Zero-Order mode */
         RS2_OPTION_ENABLE_MAP_PRESERVATION, /**< Preserve previous map when starting */
+        RS2_OPTION_APD, /**< */
+        RS2_OPTION_ENVIRONMENT, /**< Provide access to several recommend sets of option presets for the depth camera */
         RS2_OPTION_COUNT /**< Number of enumeration values. Not a valid input: intended to be used in for-loops. */
     } rs2_option;
 

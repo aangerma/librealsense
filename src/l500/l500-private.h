@@ -21,7 +21,7 @@ namespace librealsense
     {
         // L500 depth XU identifiers
         const uint8_t L500_HWMONITOR = 1;
-        const uint8_t L500_DEPTH_VISUAL_PRESET = 2;
+        const uint8_t L500_DEPTH_ENVIRONMENT = 2;
         const uint8_t L500_ERROR_REPORTING = 3;
 
         const uint32_t FLASH_SIZE = 0x00200000;
@@ -54,7 +54,9 @@ namespace librealsense
             TEMPERATURES_GET            = 0x6A,
             DPT_INTRINSICS_FULL_GET     = 0x7F,
             RGB_INTRINSIC_GET           = 0x81,
-            RGB_EXTRINSIC_GET           = 0x82
+            RGB_EXTRINSIC_GET           = 0x82,
+            AMCSET                      = 0x2B,
+            AMCGET                      = 0x2C
         };
 
         enum gvd_fields
@@ -223,6 +225,49 @@ namespace librealsense
         private:
             rs2_option _option;
             hw_monitor* _hw_monitor;
+        };
+
+        enum l500_control
+        {
+           confidence = 0,
+           sharpness = 1,
+           rast_bilt = 2,
+           edge = 3,
+           apd = 4,
+           laser_gain = 5,
+           min_distance = 6,
+           invalidation_bypass = 7
+        };
+
+        enum l500_command
+        {
+           get_current = 0,
+           get_min = 1,
+           get_max = 2,
+           get_step = 3
+        };
+
+        class l500_controls : public option
+        {
+        public:
+            float query() const override;
+
+            void set(float value) override;
+
+            option_range get_range() const override;
+
+            bool is_enabled() const override { return true; }
+
+            const char* get_description() const override { return ""; }
+
+            explicit l500_controls(hw_monitor* hw_monitor, l500_control type);
+
+            void enable_recording(std::function<void(const option&)> recording_action) override;
+
+        private:
+            l500_control _type;
+            hw_monitor* _hw_monitor;
+            lazy<option_range> _range;
         };
 
         class l500_timestamp_reader : public frame_timestamp_reader

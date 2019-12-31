@@ -147,5 +147,48 @@ namespace librealsense
 
             return rv;
         }
-    } // librealsense::ivcam2
+
+        float l500_controls::query() const
+        {
+            auto res = _hw_monitor->send(command{ AMCGET, _type, get_current });
+            auto val = *(reinterpret_cast<int*>((void*)res.data()));
+            return val;
+        }
+
+        void l500_controls::set(float value)
+        {
+            _hw_monitor->send(command{ AMCSET, _type, (int)value });
+        }
+
+        option_range l500_controls::get_range() const
+        {
+            return *_range;
+        }
+
+        l500_controls::l500_controls(hw_monitor * hw_monitor, l500_control type)
+            :_hw_monitor(hw_monitor),
+            _type(type),
+            _range([&]()
+        {
+            auto min = _hw_monitor->send(command{ AMCGET, _type, get_min });
+            auto max = _hw_monitor->send(command{ AMCGET, _type, get_max });
+            auto step = _hw_monitor->send(command{ AMCGET, _type, get_step });
+
+            _hw_monitor->send(command{ AMCSET, _type, *(reinterpret_cast<int*>(min.data())) });
+
+            auto def = query();
+
+            auto res = option_range{ float(*(reinterpret_cast<int*>(min.data()))),
+                float(*(reinterpret_cast<int*>(max.data()))),
+                float(*(reinterpret_cast<int*>(step.data()))),
+                query() };
+
+            return res;
+        })
+        {
+        }
+        void l500_controls::enable_recording(std::function<void(const option&)> recording_action)
+        {
+        }
+} // librealsense::ivcam2
 } // namespace librealsense
