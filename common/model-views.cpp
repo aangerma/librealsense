@@ -4924,7 +4924,7 @@ namespace rs2
                 throw std::runtime_error(to_string() << "Failed to read configuration file:\n\"" << f << "\"\nRemoving it from presets.");
             }
             std::string str((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-            if (auto advanced = dev.as<advanced_mode>())
+            if (auto advanced = dev.as<serializable_device>())
             {
                 advanced.load_json(str);
                 for (auto&& sub : subdevices)
@@ -4951,11 +4951,11 @@ namespace rs2
 
         const auto save_to_json = [&](std::string full_filename)
         {
-            auto advanced = dev.as<advanced_mode>();
+            auto advanced = dev.as<serializable_device>();
             if (!ends_with(to_lower(full_filename), ".json")) full_filename += ".json";
             std::ofstream outfile(full_filename);
             json saved_configuraion;
-            if (auto advanced = dev.as<advanced_mode>())
+            if (auto advanced = dev.as<serializable_device>())
             {
                 saved_configuraion = json::parse(advanced.serialize_json());
             }
@@ -5034,36 +5034,31 @@ namespace rs2
                         {
                             auto advanced = dev.as<advanced_mode>();
                             if (advanced)
-                            {
-                                if (advanced.is_enabled())
+                                if (!advanced.is_enabled())
+                                    keep_showing_popup = true;
+
+                            if(!keep_showing_popup)
+                                if (selected < static_cast<int>(labels.size() - files_labels.size()))
                                 {
-                                    if (selected < static_cast<int>(labels.size() - files_labels.size()))
-                                    {
-                                        //Known preset was chosen
-                                        auto new_val = opt_model.range.min + opt_model.range.step * selected;
-                                        model.add_log(to_string() << "Setting " << opt_model.opt << " to "
-                                            << opt_model.value << " (" << labels[selected] << ")");
+                                    //Known preset was chosen
+                                    auto new_val = opt_model.range.min + opt_model.range.step * selected;
+                                    model.add_log(to_string() << "Setting " << opt_model.opt << " to "
+                                        << opt_model.value << " (" << labels[selected] << ")");
 
-                                        opt_model.endpoint->set_option(opt_model.opt, new_val);
+                                    opt_model.endpoint->set_option(opt_model.opt, new_val);
 
-                                        // Only apply preset to GUI if set_option was succesful
-                                        selected_file_preset = "";
-                                        opt_model.value = new_val;
-                                        is_clicked = true;
-                                    }
-                                    else
-                                    {
-                                        //File was chosen
-                                        auto f = full_files_names[selected - static_cast<int>(labels.size() - files_labels.size())];
-                                        error_message = safe_call([&]() { load_json(f); });
-                                        selected_file_preset = f;
-                                    }
+                                    // Only apply preset to GUI if set_option was succesful
+                                    selected_file_preset = "";
+                                    opt_model.value = new_val;
+                                    is_clicked = true;
                                 }
                                 else
                                 {
-                                    keep_showing_popup = true;
+                                    //File was chosen
+                                    auto f = full_files_names[selected - static_cast<int>(labels.size() - files_labels.size())];
+                                    error_message = safe_call([&]() { load_json(f); });
+                                    selected_file_preset = f;
                                 }
-                            }
                         }
                         if (keep_showing_popup)
                         {
@@ -5091,14 +5086,17 @@ namespace rs2
         const ImVec2 icons_size{ 20, 20 };
         //TODO: Change this once we have support for loading jsons with more data than only advanced controls
         bool is_streaming = std::any_of(subdevices.begin(), subdevices.end(), [](const std::shared_ptr<subdevice_model>& sm) { return sm->streaming; });
-        const int buttons_flags = dev.is<advanced_mode>() ? 0 : ImGuiButtonFlags_Disabled;
+        const int buttons_flags = dev.is<serializable_device>() ? 0 : ImGuiButtonFlags_Disabled;
         static bool require_advanced_mode_enable_prompt = false;
         auto advanced_dev = dev.as<advanced_mode>();
-        bool is_advanced_mode_enabled = false;
+        bool is_advanced_mode_enabled = true;
         if (advanced_dev)
         {
             is_advanced_mode_enabled = advanced_dev.is_enabled();
         }
+
+        auto serializable_dev = dev.is<serializable_device>();
+
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 3);
 
         ////////////////////////////////////////
@@ -5110,7 +5108,7 @@ namespace rs2
 
         if (ImGui::ButtonEx(upload_button_name.c_str(), icons_size, (is_streaming && !load_json_if_streaming) ? ImGuiButtonFlags_Disabled : buttons_flags))
         {
-            if (is_advanced_mode_enabled)
+            if (serializable_dev && is_advanced_mode_enabled)
             {
                 json_loading([&]()
                 {
@@ -5142,7 +5140,7 @@ namespace rs2
         ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 1); //Align the two icons to buttom
         if (ImGui::ButtonEx(save_button_name.c_str(), icons_size, buttons_flags))
         {
-            if (is_advanced_mode_enabled)
+            if (serializable_dev && is_advanced_mode_enabled)
             {
                 auto ret = file_dialog_open(save_file, "JavaScript Object Notation (JSON)\0*.json\0", NULL, NULL);
                 if (ret)
@@ -5365,7 +5363,7 @@ namespace rs2
         ////////////////////////////////////////
         // draw advanced mode panel
         ////////////////////////////////////////
-        if (dev.is<advanced_mode>())
+        if (dev.is<serializable_device>())
         {
             pos = ImGui::GetCursorPos();
             const float vertical_space_before_advanced_mode_control = 10.0f;

@@ -139,13 +139,21 @@ namespace librealsense
         
         depth_ep->register_option(RS2_OPTION_GLOBAL_TIME_ENABLED, enable_global_time_option);
         depth_ep->get_option(RS2_OPTION_GLOBAL_TIME_ENABLED).set(0);
+        depth_ep->register_option(RS2_OPTION_ENVIRONMENT,
+            std::make_shared<uvc_xu_option<int>>(
+                *raw_depth_ep,
+                ivcam2::depth_xu,
+                ivcam2::L500_DEPTH_ENVIRONMENT, "Set the environment of camera to Dark or Low Ambient. 1 is long range and 2 is short range",
+                std::map<float, std::string>{ { 1, "Dark"},
+                { 2, "Low Ambient" }}));
+
         depth_ep->register_option(RS2_OPTION_VISUAL_PRESET,
             std::make_shared<uvc_xu_option<int>>(
                 *raw_depth_ep,
                 ivcam2::depth_xu,
-                ivcam2::L500_DEPTH_VISUAL_PRESET, "Preset to calibrate the camera to short or long range. 1 is long range and 2 is short range",
-                std::map<float, std::string>{ { 1, "Long range"},
-                { 2, "Short range" }}));
+                ivcam2::L500_DEPTH_ENVIRONMENT, "Preset to calibrate the camera to Dark or Low Ambient. 1 is long range and 2 is short range",
+                std::map<float, std::string>{ { 1, "Dark"},
+                { 2, "Low Ambient" }}));
 
         auto is_zo_enabled_opt = std::make_shared<bool_option>();
         auto weak_is_zo_enabled_opt = std::weak_ptr<bool_option>(is_zo_enabled_opt);
