@@ -37,8 +37,28 @@ namespace librealsense
         auto color_ep = std::make_shared<l500_color_sensor>(this, raw_color_ep, ctx, l500_color_fourcc_to_rs2_format, l500_color_fourcc_to_rs2_stream);
 
         // processing blocks
-        color_ep->register_processing_block(processing_block_factory::create_pbf_vector<yuy2_converter>(RS2_FORMAT_YUYV, map_supported_color_formats(RS2_FORMAT_YUYV), RS2_STREAM_COLOR));
-        
+        if( _autocal )
+        {
+            color_ep->register_processing_block(
+                processing_block_factory::create_pbf_vector< yuy2_converter >(
+                    RS2_FORMAT_YUYV,                                                      // from
+                    map_supported_color_formats( RS2_FORMAT_YUYV ), RS2_STREAM_COLOR,     // to
+                    [=]( std::shared_ptr< generic_processing_block > pb )
+                    {
+                        auto cpb = std::make_shared< composite_processing_block >();
+                        cpb->add( pb );
+                        cpb->add( std::make_shared< autocal_color_processing_block >( _autocal ) );
+                        return cpb;
+                    } ) );
+        }
+        else
+        {
+            color_ep->register_processing_block(
+                processing_block_factory::create_pbf_vector< yuy2_converter >(
+                    RS2_FORMAT_YUYV,                                                      // from
+                    map_supported_color_formats( RS2_FORMAT_YUYV ), RS2_STREAM_COLOR ) ); // to
+        }
+
         // options
         color_ep->register_option(RS2_OPTION_GLOBAL_TIME_ENABLED, enable_global_time_option);
         color_ep->get_option(RS2_OPTION_GLOBAL_TIME_ENABLED).set(0);
