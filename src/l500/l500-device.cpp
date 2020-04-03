@@ -121,12 +121,6 @@ namespace librealsense
 
         configure_depth_options();
 
-        _autocal->register_callback([&](calibration new_calib)
-        {
-            _updated_calib = new_calib;
-            for (auto&& cb : _update_calic_callbacks)
-                cb(new_calib);
-        });
     }
 
 
@@ -175,6 +169,13 @@ namespace librealsense
             );
 
             _autocal = std::make_shared< auto_calibration >( autocal_enabled_opt );
+
+            _autocal->register_callback([&](calibration new_calib)
+            {
+                _updated_calib = new_calib;
+                for (auto&& cb : _update_calic_callbacks)
+                    cb(new_calib);
+            });
         }
 
         depth_sensor.register_processing_block(

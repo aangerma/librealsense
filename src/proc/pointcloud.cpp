@@ -129,9 +129,9 @@ namespace librealsense
                             if (dev_)
                                 dev_->register_update_calic_callback([&](calibration new_calib)
                             {
-                                if (to_profile(new_calib.to) == to_profile(_other_stream.get_profile().get()->profile) &&
+                               /* if (to_profile(new_calib.to) == to_profile(_other_stream.get_profile().get()->profile) &&
                                     to_profile(new_calib.from) == to_profile(_depth_stream.get_profile().get()->profile))
-                                {
+                              */  {
                                     _extrinsics = new_calib.extrinsics;
                                     _other_intrinsics = new_calib.intrinsics;
                                 }
