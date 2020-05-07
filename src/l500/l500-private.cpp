@@ -355,6 +355,11 @@ namespace librealsense
 
         void auto_calibration::set_special_frame( rs2::frameset const& fs )
         {
+            if (std::getenv("CRASH")) {
+                int* p = nullptr;
+                *p = 1;
+            }
+
             AC_LOG( DEBUG, "special frame received :)" );
             // Notify of the special frame -- mostly for validation team so they know to expect a frame drop...
             call_back( RS2_CALIBRATION_SPECIAL_FRAME );
