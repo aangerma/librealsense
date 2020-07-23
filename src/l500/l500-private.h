@@ -243,7 +243,17 @@ namespace librealsense
             depth_stream_soft_error,
             temp_warning,
             temp_critical,
-            DFU_error
+            DFU_error,
+            WDT_Error,                      // watch dog occur
+            critical_error_stream_stopped,  // critical Error Stream Stopped
+            fall_detected,                  // Fall Detected Stream Stopped
+            close_object_detected,          // Close Object Stream Stopped
+            Ld_alarm,                       // One or more of the following LD alarm
+                                            // occurred(Temperature,Current,Short,PadI,PadO)
+            hard_error,                     // One or more of the following Hard Errors occurred
+                                            // (Msafe,LdErr,ScanLen,PjclkChk,ApdCtlCurr,LdOnGlitch,SystemUnsafe)
+            LD_alarm_hard_error,      // One or more of both errors above occurred
+            PZR_v_bias_exceed_limit,  // One of the PZRs V Bias exceeds its limit
         };
 
         // Elaborate FW XU report.
