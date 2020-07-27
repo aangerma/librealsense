@@ -27,7 +27,7 @@ namespace depth_to_rgb_calibration {
     void svd_3x4( const double in[12], double out[3] );  // in svd_3x4.cpp
 
     double3x3 cholesky3x3( double3x3 const & mat );
-
+    std::vector<double> direct_inv(std::vector<double> A, uint32_t s);
 }
 }
 }
