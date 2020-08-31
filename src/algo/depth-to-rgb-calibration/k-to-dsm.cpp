@@ -399,7 +399,7 @@ double2 k_to_DSM::run_scaling_optimization_step
         sg_mat[i][5] = 1;
     }
 
-    double sg_mat_tag_x_sg_mat[36] = { 0 };
+    std::vector< double > sg_mat_tag_x_sg_mat( SIZE_OF_GRID_Y * SIZE_OF_GRID_Y, 0 );
     double sg_mat_tag_x_err_l2[6] = { 0 };
 
     for (auto i = 0; i < 6; i++)
@@ -423,8 +423,8 @@ double2 k_to_DSM::run_scaling_optimization_step
     }
 
     double quad_coef[6];
-    direct_inv_6x6(sg_mat_tag_x_sg_mat, sg_mat_tag_x_err_l2, quad_coef);
-
+    //direct_inv_6x6(sg_mat_tag_x_sg_mat, sg_mat_tag_x_err_l2, quad_coef);
+    auto inv = direct_inv( sg_mat_tag_x_sg_mat, SIZE_OF_GRID_Y );
    
 
     double A[4] = { quad_coef[0], quad_coef[2] / 2, quad_coef[2] / 2, quad_coef[1] };
