@@ -143,6 +143,10 @@ namespace librealsense
                    (a.fps == b.fps) &&
                    (a.format == b.format);
         }
+        inline std::ostream & operator<<( std::ostream & out, const stream_profile & s )
+        {
+            return out << s.format << " " << s.width << "x" << s.height << " " << s.fps;
+        } 
 
 #pragma pack(push, 1)
         struct uvc_header
@@ -651,11 +655,15 @@ namespace librealsense
                 : _dev(dev)
             {}
 
-            void probe_and_commit(stream_profile profile, frame_callback callback, int buffers) override
+            void probe_and_commit( stream_profile profile,
+                                   frame_callback callback,
+                                   int buffers ) override
             {
-                auto dev_index = get_dev_index_by_profiles(profile);
-                _configured_indexes.insert(dev_index);
-                _dev[dev_index]->probe_and_commit(profile, callback, buffers);
+                auto dev_index = get_dev_index_by_profiles( profile );
+                _configured_indexes.insert( dev_index );
+                _profile_to_index.push_back( { profile, dev_index } );
+
+                _dev[dev_index]->probe_and_commit( profile, callback, buffers );
             }
 
 
@@ -682,11 +690,27 @@ namespace librealsense
                 }
             }
 
-            void close(stream_profile profile) override
+            void close( stream_profile profile ) override
             {
-                auto dev_index = get_dev_index_by_profiles(profile);
-                _dev[dev_index]->close(profile);
-                _configured_indexes.erase(dev_index);
+                auto it = std::find_if( _profile_to_index.begin(),
+                                        _profile_to_index.end(),
+                                        [profile]( std::pair< stream_profile, uint32_t > p ) {
+                                            return p.first == profile;
+                                        } );
+
+                if( it != _profile_to_index.end() )
+                {
+                    auto dev_index = it->second;
+                    _dev[dev_index]->close( profile );
+                    _profile_to_index.erase( it );
+                    _configured_indexes.erase( dev_index );
+                }
+                else
+                {
+                    std::stringstream s;
+                    s << profile;
+                    throw std::runtime_error( s.str() + " didn't found on registered profiles" );
+                }
             }
 
             void set_power_state(power_state state) override
@@ -806,6 +830,7 @@ namespace librealsense
 
             std::vector<std::shared_ptr<uvc_device>> _dev;
             std::set<uint32_t> _configured_indexes;
+            std::vector< std::pair< stream_profile, uint32_t > > _profile_to_index;
         };
 
         std::shared_ptr<backend> create_backend();
