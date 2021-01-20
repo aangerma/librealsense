@@ -29,45 +29,54 @@ namespace librealsense
         get_default = 4
     };
 
-class l500_options;
-class l500_hw_options;
+    class l500_options;
+    class l500_hw_options;
 
-class digital_gain_option : public uvc_xu_option< int >
-{
-public:
-    digital_gain_option(
-        uvc_sensor & ep,
-        platform::extension_unit xu,
-        uint8_t id,
-        std::string description,
-        const std::map< float, std::string > & description_per_value,
-        firmware_version fw_version,
-        l500_options * owner,
-        std::map< rs2_option, std::shared_ptr< cascade_option< l500_hw_options > > > gain_options )
-        : uvc_xu_option< int >( ep, xu, id, description, description_per_value ) 
-        , _fw_version( fw_version )
-        , _owner( owner )
-        , _gain_options( gain_options )
+    class digital_gain_option : public uvc_xu_option< int >
     {
-    }
+    public:
+        digital_gain_option(
+            uvc_sensor & ep,
+            platform::extension_unit xu,
+            uint8_t id,
+            std::string description,
+            const std::map< float, std::string > & description_per_value,
+            firmware_version fw_version,
+            l500_options * owner,
+            std::map< rs2_option,
+                      std::shared_ptr< cascade_option< l500_hw_options > > >  gain_options )
+            : uvc_xu_option< int >( ep, xu, id, description, description_per_value ) 
+            , _fw_version( fw_version )
+            , _owner( owner )
+            , _gain_options( gain_options )
+        {
+        }
 
-    void set( float value ) override;
+        void set( float value ) override;
+        void reset_gain_controls();
+        bool is_digital_gain_on_custom();
+        void on_set_option( rs2_option opt, float value );
 
-private:
-    void update_defaults( rs2_digital_gain value );
-    void set_preset_controls_to_defaults();
+        std::map< rs2_option,
+                  std::shared_ptr< cascade_option< l500_hw_options > > >  get_gain_options();
 
-    firmware_version _fw_version;
-    l500_options * _owner;
-    std::map< rs2_option, std::shared_ptr< cascade_option< l500_hw_options > > > _gain_options;
-};
+        void update_defaults();
+        void set_all_preset_controls_to_defaults();
+        void set_preset_controls_to_defaults( rs2_digital_gain value );
 
-class l500_hw_options : public option
-{
-public:
+    private:
+
+        firmware_version _fw_version;
+        l500_options * _owner;
+        std::map< rs2_option, std::shared_ptr< cascade_option< l500_hw_options > > > _gain_options;
+    };
+
+    class l500_hw_options : public option
+    {
+    public:
         float query() const override;
 
-        void set(float value) override;
+        void set( float value ) override;
 
         option_range get_range() const override;
 
@@ -75,14 +84,14 @@ public:
 
         const char * get_description() const override { return _description.c_str(); }
 
-        void enable_recording(std::function<void(const option&)> recording_action) override;
+        void enable_recording( std::function< void( const option & ) > recording_action ) override;
 
-        l500_hw_options( l500_device* l500_dev,
-                         hw_monitor* hw_monitor,
+        l500_hw_options( l500_device * l500_dev,
+                         hw_monitor * hw_monitor,
                          l500_control type,
                          option * resolution,
                          const std::string & description,
-                         firmware_version fw_version);
+                         firmware_version fw_version );
 
         void update_default( float def );
         float query_default( int mode, hwmon_response * response = nullptr ) const;
@@ -94,21 +103,20 @@ public:
         void set_changed_manualy( bool set );
 
     private:
-        float query_default( hwmon_response *response ) const;
-        
+        float query_default( hwmon_response * response ) const;
+
         l500_control _type;
-        l500_device* _l500_dev;
-        hw_monitor* _hw_monitor;
+        l500_device * _l500_dev;
+        hw_monitor * _hw_monitor;
         option_range _range;
         uint32_t _width;
         uint32_t _height;
-        option* _resolution;
+        option * _resolution;
         std::string _description;
         firmware_version _fw_version;
         bool _is_read_only;
         bool _was_set_manualy;
     };
-
 
     class max_usable_range_option : public bool_option
     {
@@ -203,12 +211,14 @@ public:
         std::shared_ptr< sensor_mode_option > _sensor_mode;
 
         template<typename T, class ... Args>
-        std::shared_ptr<cascade_option<T>> register_option(rs2_option opt, Args... args)
+        std::shared_ptr< cascade_option< T > >
+        register_option( rs2_option opt, std::function< void( float ) > callback , Args... args )
         {
             auto& depth_sensor = get_synthetic_depth_sensor();
 
             auto signaled_opt = std::make_shared <cascade_option<T>>(std::forward<Args>(args)...);
-            signaled_opt->add_observer([opt, this](float val) {on_set_option(opt, val);});
+            signaled_opt->add_observer(
+                callback /*[opt, this]( float val ) { on_set_option( opt, val ); }*/ );
             depth_sensor.register_option(opt, std::dynamic_pointer_cast<option>(signaled_opt));
 
             return signaled_opt;
