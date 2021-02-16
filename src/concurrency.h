@@ -109,6 +109,18 @@ public:
         return true;
     }
 
+    bool peek(T** item, int index)
+    {
+        std::unique_lock<std::mutex> lock(_mutex);
+
+        if (_queue.size() <= 0)
+        {
+            return false;
+        }
+        *item = &_queue[index];
+        return true;
+    }
+
     void clear()
     {
         std::unique_lock<std::mutex> lock(_mutex);
@@ -137,6 +149,7 @@ public:
         std::unique_lock<std::mutex> lock(_mutex);
         return _queue.size();
     }
+
 };
 
 template<class T>
@@ -145,6 +158,10 @@ class single_consumer_frame_queue
     single_consumer_queue<T> _queue;
 
 public:
+    bool peek(T** item, int index) {
+        return _queue.peek(item, index);
+    }
+
     single_consumer_frame_queue<T>(unsigned int cap = QUEUE_MAX_SIZE) : _queue(cap) {}
 
     void enqueue(T&& item)

@@ -59,7 +59,6 @@ namespace librealsense
     protected:
         frame_source _source;
         std::mutex _mutex;
-        std::mutex mutex;
         frame_processor_callback_ptr _callback;
         synthetic_source _source_wrapper;
     };

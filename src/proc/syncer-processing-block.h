@@ -37,6 +37,8 @@ namespace librealsense
         std::unique_ptr<timestamp_composite_matcher> _matcher;
         std::vector< std::weak_ptr<bool_option> > _enable_opts;
 
+        single_consumer_frame_queue<frame_holder> matches;
+        std::mutex mut;
         bool _log;
     };
 }

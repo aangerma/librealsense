@@ -31,9 +31,33 @@ namespace librealsense
             }
             
             env.matches.enqueue(std::move(f));
+
+            if (log)
+            {
+                frame_holder * fr;
+                for (auto i = 0; i < env.matches.size(); i++)
+                {
+                    env.matches.peek(&fr, i);
+
+                    std::stringstream ss;
+                    ss << i << ":";
+                    ss << "QUEUE_1: ";
+                    auto composite = dynamic_cast<composite_frame *>(fr->frame);
+                    for (int i = 0; i < composite->get_embedded_frames_count(); i++)
+                    {
+                        auto matched = composite->get_frame(i);
+                        ss << matched->get_stream()->get_stream_type() << " "
+                            << matched->get_frame_number() << ", " << std::fixed
+                            << matched->get_frame_timestamp() << " ";
+                    }
+
+                    LOG_DEBUG(ss.str());
+                }
+            }
+
         });
 
-        auto f = [&, log](frame_holder frame, synthetic_source_interface* source)
+        auto f = [this, log ](frame_holder frame, synthetic_source_interface* source)
         {
             // if the syncer is disabled passthrough the frame
             bool enabled = false;
@@ -57,7 +81,7 @@ namespace librealsense
                 return;
             }
 
-            single_consumer_frame_queue<frame_holder> matches;
+            
 
             {
                 std::lock_guard<std::mutex> lock(_mutex);
@@ -70,23 +94,52 @@ namespace librealsense
 
             frame_holder f;
             {
-                std::lock_guard<std::mutex> lock(mutex);
-                while (matches.try_dequeue(&f))
+
+                std::lock_guard<std::mutex> lock(mut);
+
+                if( log )
                 {
-                    if (log)
+                    LOG_DEBUG( "mutex " << mut.native_handle() );
+                    frame_holder * fr;
+                    for( auto i = 0; i < matches.size(); i++ )
+                    {
+                        matches.peek( &fr, i );
+
+                        std::stringstream ss;
+                        ss << i << ":";
+                        ss << "QUEUE: ";
+                        auto composite = dynamic_cast< composite_frame * >( fr->frame );
+                        for( int i = 0; i < composite->get_embedded_frames_count(); i++ )
+                        {
+                            auto matched = composite->get_frame( i );
+                            ss << matched->get_stream()->get_stream_type() << " "
+                               << matched->get_frame_number() << ", " << std::fixed
+                               << matched->get_frame_timestamp() << " ";
+                        }
+
+                        LOG_DEBUG( ss.str() );
+                    }
+                }
+
+
+                while( matches.try_dequeue( &f ) )
+                {
+                    if( log )
                     {
                         std::stringstream ss;
                         ss << "try_dequeue: ";
-                        auto composite = dynamic_cast<composite_frame*>(f.frame);
-                        for (int i = 0; i < composite->get_embedded_frames_count(); i++)
+                        auto composite = dynamic_cast< composite_frame * >( f.frame );
+                        for( int i = 0; i < composite->get_embedded_frames_count(); i++ )
                         {
-                            auto matched = composite->get_frame(i);
-                            ss << matched->get_stream()->get_stream_type() << " " << matched->get_frame_number() << ", " << std::fixed << matched->get_frame_timestamp() << " ";
+                            auto matched = composite->get_frame( i );
+                            ss << matched->get_stream()->get_stream_type() << " "
+                               << matched->get_frame_number() << ", " << std::fixed
+                               << matched->get_frame_timestamp() << " ";
                         }
 
-                        LOG_DEBUG(ss.str());
+                        LOG_DEBUG( ss.str() );
                     }
-                    get_source().frame_ready(std::move(f));
+                    get_source().frame_ready( std::move( f ) );
                 }
             }
         };
