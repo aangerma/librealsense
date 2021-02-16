@@ -171,6 +171,6 @@ namespace librealsense
         auto identity_accel = std::make_shared<identity_matcher>(_accel_stream->get_unique_id(), _accel_stream->get_stream_type());
 
         std::vector<std::shared_ptr<matcher>> depth_rgb_imu_matchers = {ts_depth_rgb, identity_gyro, identity_accel};
-        return std::make_shared<composite_identity_matcher>(depth_rgb_imu_matchers);
+        return std::make_shared<timestamp_composite_matcher>(depth_rgb_imu_matchers);
     }
 }

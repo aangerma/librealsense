@@ -32,6 +32,14 @@ namespace librealsense
         return s.str();
     }
 
+    void log_if_enable(std::string str, syncronization_environment env)
+    {
+        if (env.log)
+        {
+            LOG_DEBUG(str);
+        }
+    }
+
     matcher::matcher(std::vector<stream_id> streams_id)
         : _streams_id(streams_id){}
 
@@ -100,7 +108,7 @@ namespace librealsense
     {
         std::stringstream s;
         s <<_name<<"--> "<< f->get_stream()->get_stream_type() << " " << f->get_frame_number() << ", "<<std::fixed<< f->get_frame_timestamp()<<"\n";
-        LOG_DEBUG(s.str());
+        log_if_enable(s.str(), env);
 
         sync(std::move(f), env);
     }
@@ -142,9 +150,10 @@ namespace librealsense
 
     void composite_matcher::dispatch(frame_holder f, syncronization_environment env)
     {
+
         std::stringstream s;
-        s <<"DISPATCH "<<_name<<"--> "<< frame_to_string(f) <<"\n";
-        LOG_DEBUG(s.str());
+        s << "DISPATCH " << _name << "--> " << frame_to_string(f) << "\n";
+        log_if_enable(s.str(), env);
 
         clean_inactive_streams(f);
         auto matcher = find_matcher(f);
@@ -264,7 +273,7 @@ namespace librealsense
     {
         std::ostringstream s;
         s <<"SYNC "<<_name<<"--> "<< frame_to_string(f)<<"\n";
-        LOG_DEBUG(s.str());
+        log_if_enable(s.str(), env);
 
         update_next_expected(f);
         auto matcher = find_matcher(f);
@@ -333,14 +342,14 @@ namespace librealsense
             {
                 for (auto i : missing_streams)
                 {
-                    if (!skip_missing_stream(synced_frames, i))
+                    if (!skip_missing_stream(synced_frames, i, env))
                     {
                         s <<  _name<<" "<<frames_to_string(synced_frames )<<" Wait for missing stream: ";
 
                         for (auto&& stream : i->get_streams())
                             s << stream<<" next expected "<<std::fixed<< _next_expected[i];
                         synced_frames.clear();
-                        LOG_DEBUG(s.str());
+                        log_if_enable(s.str(), env);
                         break;
                     }
                     else
@@ -349,7 +358,7 @@ namespace librealsense
                         s << _name << " " << frames_to_string(synced_frames) << " Skipped missing stream: ";
                         for (auto&& stream : i->get_streams())
                             s << stream << " next expected " << std::fixed << _next_expected[i]<<" ";
-                        LOG_DEBUG(s.str());
+                        log_if_enable(s.str(), env);
                     }
 
                 }
@@ -377,7 +386,7 @@ namespace librealsense
 
                 if (old_frames)
                 {
-                    LOG_DEBUG(s.str());
+                    log_if_enable(s.str(), env);
                 }
 
                 std::sort(match.begin(), match.end(), [](const frame_holder& f1, const frame_holder& f2)
@@ -429,7 +438,7 @@ namespace librealsense
                 {
                     s << stream << " ";
                 }
-                LOG_DEBUG(s.str());
+                //LOG_DEBUG(s.str());
 
                 inactive_matchers.push_back(m.first);
                 m.second->set_active(false);
@@ -442,7 +451,7 @@ namespace librealsense
         }
     }
 
-    bool frame_number_composite_matcher::skip_missing_stream(std::vector<matcher*> synced, matcher* missing)
+    bool frame_number_composite_matcher::skip_missing_stream(std::vector<matcher*> synced, matcher* missing, syncronization_environment env)
     {
         frame_holder* synced_frame;
 
@@ -523,7 +532,9 @@ namespace librealsense
         {
             fps = (uint32_t)f.frame->get_frame_metadata(RS2_FRAME_METADATA_ACTUAL_FPS);
         }
-        LOG_DEBUG("fps " <<fps<<" "<< frame_to_string(const_cast<frame_holder&>(f)));
+        std::stringstream s;
+        s << "fps " << fps << " " << frame_to_string(const_cast<frame_holder&>(f));
+
         return fps?fps:f.frame->get_stream()->get_framerate();
     }
 
@@ -536,8 +547,8 @@ namespace librealsense
 
         _next_expected[matcher.get()] = f.frame->get_frame_timestamp() + gap;
         _next_expected_domain[matcher.get()] = f.frame->get_frame_timestamp_domain();
-        LOG_DEBUG(_name << frame_to_string(const_cast<frame_holder&>(f))<<"fps " <<fps<<" gap " <<gap<<" next_expected: "<< _next_expected[matcher.get()]);
-
+        std::stringstream s;
+        s << _name << frame_to_string(const_cast<frame_holder&>(f)) << "fps " << fps << " gap " << gap << " next_expected: " << _next_expected[matcher.get()];
     }
 
     void timestamp_composite_matcher::clean_inactive_streams(frame_holder& f)
@@ -558,7 +569,7 @@ namespace librealsense
                 {
                     s << stream << " ";
                 }
-                LOG_DEBUG(s.str());
+                //LOG_DEBUG(s.str());
 
                 dead_matchers.push_back(m.first);
                 m.second->set_active(false);
@@ -572,7 +583,7 @@ namespace librealsense
         }
     }
 
-    bool timestamp_composite_matcher::skip_missing_stream(std::vector<matcher*> synced, matcher* missing)
+    bool timestamp_composite_matcher::skip_missing_stream(std::vector<matcher*> synced, matcher* missing, syncronization_environment env)
     {
         if(!missing->get_active())
             return true;
@@ -595,7 +606,7 @@ namespace librealsense
         //next expected of the missing stream didn't updated yet
         if((*synced_frame)->get_frame_timestamp() > next_expected && abs((*synced_frame)->get_frame_timestamp()- next_expected)<gap*10)
         {
-            LOG_DEBUG("next expected of the missing stream didn't updated yet");
+            log_if_enable("next expected of the missing stream didn't updated yet", env);
             return false;
         }
 
