@@ -60,9 +60,13 @@ namespace librealsense
                 _matcher->dispatch(std::move(frame), { source, matches });
             }
 
-            frame_holder f;
-            while (matches.try_dequeue(&f))
-                get_source().frame_ready(std::move(f));
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                frame_holder f;
+                while (matches.try_dequeue(&f))
+                    get_source().frame_ready(std::move(f));
+            }
+            
 
         };
 
