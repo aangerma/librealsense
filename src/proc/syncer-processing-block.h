@@ -34,7 +34,7 @@ namespace librealsense
             _matcher.reset();
         }
     private:
-        std::unique_ptr<timestamp_composite_matcher> _matcher;
+        std::shared_ptr<matcher> _matcher;
         std::vector< std::weak_ptr<bool_option> > _enable_opts;
 
         single_consumer_frame_queue<frame_holder> matches;

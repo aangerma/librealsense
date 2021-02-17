@@ -11,54 +11,10 @@
 namespace librealsense
 {
     syncer_process_unit::syncer_process_unit( std::initializer_list< bool_option::ptr > enable_opts, bool log )
-        : processing_block("syncer"), _matcher((new timestamp_composite_matcher({})))
+        : processing_block("syncer")
         , _enable_opts( enable_opts.begin(), enable_opts.end() )
     {
-        _matcher->set_callback([this, log](frame_holder f, syncronization_environment env)
-        {
-            if (log)
-            {
-                std::stringstream ss;
-                ss << "SYNCED: ";
-                auto composite = dynamic_cast<composite_frame*>(f.frame);
-                for (int i = 0; i < composite->get_embedded_frames_count(); i++)
-                {
-                    auto matched = composite->get_frame(i);
-                    ss << matched->get_stream()->get_stream_type() << " " << matched->get_frame_number() << ", " << std::fixed << matched->get_frame_timestamp() << " ";
-                }
-
-                LOG_DEBUG(ss.str());
-            }
-            
-            env.matches.enqueue(std::move(f));
-
-            if (log)
-            {
-                frame_holder * fr;
-                for (auto i = 0; i < env.matches.size(); i++)
-                {
-                    env.matches.peek(&fr, i);
-                    if (fr)
-                    {
-                        std::stringstream ss;
-                        ss << i << ":";
-                        ss << "QUEUE_1: " << &env.matches;
-                        auto composite = dynamic_cast<composite_frame *>(fr->frame);
-                        for (int i = 0; i < composite->get_embedded_frames_count(); i++)
-                        {
-                            auto matched = composite->get_frame(i);
-                            ss << matched->get_stream()->get_stream_type() << " "
-                                << matched->get_frame_number() << ", " << std::fixed
-                                << matched->get_frame_timestamp() << " ";
-                        }
-                        LOG_DEBUG(ss.str());
-                    }
-
-                    
-                }
-            }
-
-        });
+        
 
         auto f = [this, log ](frame_holder frame, synthetic_source_interface* source)
         {
@@ -92,8 +48,79 @@ namespace librealsense
                 {
                     LOG_DEBUG("dispatch");
                 }
+
+                if (_matcher == nullptr)
+                {
+                    auto sensor = frame.frame->get_sensor().get();
+                    const device_interface* dev = nullptr;
+                    try
+                    {
+                        dev = sensor->get_device().shared_from_this().get();
+                    }
+                    catch (const std::bad_weak_ptr&)
+                    {
+                        LOG_WARNING("Device destroyed");
+                    }
+                    if (dev)
+                    {
+                        _matcher = dev->create_matcher(frame);
+
+                    }
+                    else
+                    {
+                        _matcher = std::shared_ptr<matcher>(new timestamp_composite_matcher({}));
+                    }
+
+                    _matcher->set_callback([this, log](frame_holder f, syncronization_environment env)
+                    {
+                        if (log)
+                        {
+                            std::stringstream ss;
+                            ss << "SYNCED: ";
+                            auto composite = dynamic_cast<composite_frame*>(f.frame);
+                            for (int i = 0; i < composite->get_embedded_frames_count(); i++)
+                            {
+                                auto matched = composite->get_frame(i);
+                                ss << matched->get_stream()->get_stream_type() << " " << matched->get_frame_number() << ", " << std::fixed << matched->get_frame_timestamp() << " ";
+                            }
+
+                            LOG_DEBUG(ss.str());
+                        }
+
+                        env.matches.enqueue(std::move(f));
+
+                        if (log)
+                        {
+                            frame_holder * fr;
+                            for (auto i = 0; i < env.matches.size(); i++)
+                            {
+                                env.matches.peek(&fr, i);
+                                if (fr)
+                                {
+                                    std::stringstream ss;
+                                    ss << i << ":";
+                                    ss << "QUEUE_1: " << &env.matches;
+                                    auto composite = dynamic_cast<composite_frame *>(fr->frame);
+                                    for (int i = 0; i < composite->get_embedded_frames_count(); i++)
+                                    {
+                                        auto matched = composite->get_frame(i);
+                                        ss << matched->get_stream()->get_stream_type() << " "
+                                            << matched->get_frame_number() << ", " << std::fixed
+                                            << matched->get_frame_timestamp() << " ";
+                                    }
+                                    LOG_DEBUG(ss.str());
+                                }
+
+
+                            }
+                        }
+
+                    });
+                }
                 _matcher->dispatch(std::move(frame), { source, matches, log });
             }
+
+           
 
             frame_holder f;
             {
