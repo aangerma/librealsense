@@ -41,7 +41,7 @@ namespace librealsense
 
                     std::stringstream ss;
                     ss << i << ":";
-                    ss << "QUEUE_1: ";
+                    ss << "QUEUE_1: " << &env.matches;
                     auto composite = dynamic_cast<composite_frame *>(fr->frame);
                     for (int i = 0; i < composite->get_embedded_frames_count(); i++)
                     {
@@ -107,7 +107,7 @@ namespace librealsense
 
                         std::stringstream ss;
                         ss << i << ":";
-                        ss << "QUEUE: ";
+                        ss << "QUEUE: " << &matches;
                         auto composite = dynamic_cast< composite_frame * >( fr->frame );
                         for( int i = 0; i < composite->get_embedded_frames_count(); i++ )
                         {
