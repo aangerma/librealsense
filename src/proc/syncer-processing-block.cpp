@@ -38,20 +38,23 @@ namespace librealsense
                 for (auto i = 0; i < env.matches.size(); i++)
                 {
                     env.matches.peek(&fr, i);
-
-                    std::stringstream ss;
-                    ss << i << ":";
-                    ss << "QUEUE_1: " << &env.matches;
-                    auto composite = dynamic_cast<composite_frame *>(fr->frame);
-                    for (int i = 0; i < composite->get_embedded_frames_count(); i++)
+                    if (fr)
                     {
-                        auto matched = composite->get_frame(i);
-                        ss << matched->get_stream()->get_stream_type() << " "
-                            << matched->get_frame_number() << ", " << std::fixed
-                            << matched->get_frame_timestamp() << " ";
+                        std::stringstream ss;
+                        ss << i << ":";
+                        ss << "QUEUE_1: " << &env.matches;
+                        auto composite = dynamic_cast<composite_frame *>(fr->frame);
+                        for (int i = 0; i < composite->get_embedded_frames_count(); i++)
+                        {
+                            auto matched = composite->get_frame(i);
+                            ss << matched->get_stream()->get_stream_type() << " "
+                                << matched->get_frame_number() << ", " << std::fixed
+                                << matched->get_frame_timestamp() << " ";
+                        }
+                        LOG_DEBUG(ss.str());
                     }
 
-                    LOG_DEBUG(ss.str());
+                    
                 }
             }
 
@@ -104,20 +107,22 @@ namespace librealsense
                     for( auto i = 0; i < matches.size(); i++ )
                     {
                         matches.peek( &fr, i );
-
-                        std::stringstream ss;
-                        ss << i << ":";
-                        ss << "QUEUE: " << &matches;
-                        auto composite = dynamic_cast< composite_frame * >( fr->frame );
-                        for( int i = 0; i < composite->get_embedded_frames_count(); i++ )
+                        if (fr)
                         {
-                            auto matched = composite->get_frame( i );
-                            ss << matched->get_stream()->get_stream_type() << " "
-                               << matched->get_frame_number() << ", " << std::fixed
-                               << matched->get_frame_timestamp() << " ";
-                        }
+                            std::stringstream ss;
+                            ss << i << ":";
+                            ss << "QUEUE: " << &matches;
+                            auto composite = dynamic_cast<composite_frame *>(fr->frame);
+                            for (int i = 0; i < composite->get_embedded_frames_count(); i++)
+                            {
+                                auto matched = composite->get_frame(i);
+                                ss << matched->get_stream()->get_stream_type() << " "
+                                    << matched->get_frame_number() << ", " << std::fixed
+                                    << matched->get_frame_timestamp() << " ";
+                            }
 
-                        LOG_DEBUG( ss.str() );
+                            LOG_DEBUG(ss.str());
+                        }
                     }
                 }
 
