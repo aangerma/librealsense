@@ -152,7 +152,7 @@ playback_device::~playback_device()
                 sensor.second->stop();
         }
     });
-    if((*m_read_thread)->flush() == false)
+    if((*m_read_thread)->flush() ==  false)
     {
         LOG_ERROR("Error - timeout waiting for flush, possible deadlock detected");
         assert(0); //Detect this immediately in debug
