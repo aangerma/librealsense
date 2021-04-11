@@ -69,14 +69,16 @@ TEST_CASE("inverse_brown_conrady_sse_deproject")
         rs2_deproject_pixel_to_point((float*)&points[i], &intrin, (float*)&pixel[i], depth);
     }
    
+
     std::vector<librealsense::float2> res(4, { 0,0 });
     std::vector<librealsense::float2> unnormalized_res(4, { 0,0 });
     rs2_extrinsics extrin = { {1,0,0,
         0,1,0,
         0,0,1},{0,0,0} };
 
+    std::cout << "before get_texture_map_sse" << std::endl;
     pc_sse->get_texture_map_sse((librealsense::float2*)res.data(), points, 4, 1, intrin, extrin, (librealsense::float2*)unnormalized_res.data());
-
+    std::cout << "after get_texture_map_sse" << std::endl;
     for (auto i = 0; i < 4; i++)
     {
         compare(unnormalized_res[i], pixel[i]);
