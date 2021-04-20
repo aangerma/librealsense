@@ -22,13 +22,15 @@ namespace librealsense
     std::map<uint32_t, rs2_format> l500_color_fourcc_to_rs2_format = {
         {rs_fourcc('Y','U','Y','2'), RS2_FORMAT_YUYV},
         {rs_fourcc('Y','U','Y','V'), RS2_FORMAT_YUYV},
-        {rs_fourcc('U','Y','V','Y'), RS2_FORMAT_UYVY}
+        {rs_fourcc('U','Y','V','Y'), RS2_FORMAT_UYVY},
+        {rs_fourcc('Y','4','1','1'), RS2_FORMAT_Y411}
     };
 
     std::map<uint32_t, rs2_stream> l500_color_fourcc_to_rs2_stream = {
         {rs_fourcc('Y','U','Y','2'), RS2_STREAM_COLOR},
         {rs_fourcc('Y','U','Y','V'), RS2_STREAM_COLOR},
-        {rs_fourcc('U','Y','V','Y'), RS2_STREAM_COLOR}
+        {rs_fourcc('U','Y','V','Y'), RS2_STREAM_COLOR},
+        { rs_fourcc( 'Y', '4', '1', '1' ), RS2_STREAM_COLOR}
     };
 
     std::shared_ptr<synthetic_sensor> l500_color::create_color_device(std::shared_ptr<context> ctx, const std::vector<platform::uvc_device_info>& color_devices_info)
@@ -41,32 +43,31 @@ namespace librealsense
             std::unique_ptr<frame_timestamp_reader>(new global_timestamp_reader(std::move(timestamp_reader_metadata), _tf_keeper, enable_global_time_option)),
             this);
         auto color_ep = std::make_shared<l500_color_sensor>(this, raw_color_ep, ctx, l500_color_fourcc_to_rs2_format, l500_color_fourcc_to_rs2_stream);
-
+    
         color_ep->register_info(RS2_CAMERA_INFO_PHYSICAL_PORT, color_devices_info.front().device_path);
-
+    
         // processing blocks
-        if( _autocal )
+        if (_autocal)
         {
             color_ep->register_processing_block(
                 processing_block_factory::create_pbf_vector< yuy2_converter >(
                     RS2_FORMAT_YUYV,                                                      // from
-                    map_supported_color_formats( RS2_FORMAT_YUYV ), RS2_STREAM_COLOR,     // to
-                    [=]( std::shared_ptr< generic_processing_block > pb )
-                    {
-                        auto cpb = std::make_shared< composite_processing_block >();
-                        cpb->add(std::make_shared< ac_trigger::color_processing_block >(_autocal));
-                        cpb->add( pb );
-                        return cpb;
-                    } ) );
+                    map_supported_color_formats(RS2_FORMAT_YUYV), RS2_STREAM_COLOR,     // to
+                    [=](std::shared_ptr< generic_processing_block > pb)
+            {
+                auto cpb = std::make_shared< composite_processing_block >();
+                cpb->add(std::make_shared< ac_trigger::color_processing_block >(_autocal));
+                cpb->add(pb);
+                return cpb;
+            }));
         }
         else
         {
             color_ep->register_processing_block(
                 processing_block_factory::create_pbf_vector< yuy2_converter >(
                     RS2_FORMAT_YUYV,                                                      // from
-                    map_supported_color_formats( RS2_FORMAT_YUYV ), RS2_STREAM_COLOR ) ); // to
+                    map_supported_color_formats(RS2_FORMAT_YUYV), RS2_STREAM_COLOR)); // to
         }
-
         // options
         color_ep->register_option(RS2_OPTION_GLOBAL_TIME_ENABLED, enable_global_time_option);
         color_ep->get_option(RS2_OPTION_GLOBAL_TIME_ENABLED).set(0);
@@ -168,6 +169,19 @@ namespace librealsense
         }
 
         return color_ep;
+    }
+
+    l535_color::l535_color( std::shared_ptr< context > ctx,
+                            const platform::backend_device_group & group )
+        : device( ctx, group )
+        , l500_device( ctx, group )
+        , l500_color( ctx, group )
+    {
+        get_color_sensor()->register_processing_block(processing_block_factory::create_id_pbf(RS2_FORMAT_Y411, RS2_STREAM_COLOR));
+        get_color_sensor()->register_processing_block(
+            { { RS2_FORMAT_Y411 } },
+            { { RS2_FORMAT_RGB8, RS2_STREAM_COLOR } },
+            []() { return std::make_shared<Y411_converter>(RS2_FORMAT_RGB8); });
     }
 
     l500_color::l500_color(std::shared_ptr<context> ctx, const platform::backend_device_group & group)
