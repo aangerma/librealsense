@@ -347,14 +347,15 @@ namespace librealsense
                     int width = vsp ? vsp->get_width() : 0;
                     int height = vsp ? vsp->get_height() : 0;
 
-                    frame_holder fh = _source.alloc_frame(stream_to_frame_types(req_profile_base->get_stream_type()), width * height * bpp / 8, fr->additional_data, requires_processing);
+                    frame_holder fh = _source.alloc_frame(stream_to_frame_types(req_profile_base->get_stream_type()), width * height * (float)bpp / 8.f, fr->additional_data, requires_processing);
                     auto diff = environment::get_instance().get_time_service()->get_time() - system_time;
                     if (diff >10 )
                         LOG_DEBUG("!! Frame allocation took " << diff << " msec");
 
                     if (fh.frame)
                     {
-                        memcpy((void*)fh->get_frame_data(), fr->data.data(), sizeof(byte)*fr->data.size());
+						//memcpy((void*)fh->get_frame_data(), fr->data.data(), sizeof(byte)*fr->data.size());
+                        memcpy((void*)fh->get_frame_data(), fr->data.data(), width * height * (float)bpp / 8.f);
                         auto&& video = (video_frame*)fh.frame;
                         video->assign(width, height, width * bpp / 8, bpp);
                         video->set_timestamp_domain(timestamp_domain);

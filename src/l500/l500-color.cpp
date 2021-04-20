@@ -22,50 +22,119 @@ namespace librealsense
     std::map<uint32_t, rs2_format> l500_color_fourcc_to_rs2_format = {
         {rs_fourcc('Y','U','Y','2'), RS2_FORMAT_YUYV},
         {rs_fourcc('Y','U','Y','V'), RS2_FORMAT_YUYV},
-        {rs_fourcc('U','Y','V','Y'), RS2_FORMAT_UYVY}
+        {rs_fourcc('U','Y','V','Y'), RS2_FORMAT_UYVY},
+		{rs_fourcc('Y','4','1','1'), RS2_FORMAT_Y411 }
     };
 
     std::map<uint32_t, rs2_stream> l500_color_fourcc_to_rs2_stream = {
         {rs_fourcc('Y','U','Y','2'), RS2_STREAM_COLOR},
         {rs_fourcc('Y','U','Y','V'), RS2_STREAM_COLOR},
-        {rs_fourcc('U','Y','V','Y'), RS2_STREAM_COLOR}
+        {rs_fourcc('U','Y','V','Y'), RS2_STREAM_COLOR},
+		{ rs_fourcc('Y','4','1','1'), RS2_STREAM_COLOR }
     };
 
-    std::shared_ptr<synthetic_sensor> l500_color::create_color_device(std::shared_ptr<context> ctx, const std::vector<platform::uvc_device_info>& color_devices_info)
-    {
-        auto&& backend = ctx->get_backend();
+	class Y411_converter : public functional_processing_block
+	{
+	public:
+		Y411_converter(const rs2_format& target_format) :
+			functional_processing_block("W10 Transform", target_format) {};
 
-        std::unique_ptr<frame_timestamp_reader> timestamp_reader_metadata(new ivcam2::l500_timestamp_reader_from_metadata(backend.create_time_service()));
-        auto enable_global_time_option = std::shared_ptr<global_time_option>(new global_time_option());
-        auto raw_color_ep = std::make_shared<uvc_sensor>("RGB Camera", ctx->get_backend().create_uvc_device(color_devices_info.front()),
-            std::unique_ptr<frame_timestamp_reader>(new global_timestamp_reader(std::move(timestamp_reader_metadata), _tf_keeper, enable_global_time_option)),
-            this);
-        auto color_ep = std::make_shared<l500_color_sensor>(this, raw_color_ep, ctx, l500_color_fourcc_to_rs2_format, l500_color_fourcc_to_rs2_stream);
+	protected:
+		Y411_converter(const char* name, const rs2_format& target_format):
+			functional_processing_block(name, target_format, RS2_STREAM_COLOR, RS2_EXTENSION_VIDEO_FRAME) {
+			_stream_filter.format = _target_format;
+			_stream_filter.stream = _target_stream;
+		}
 
-        color_ep->register_info(RS2_CAMERA_INFO_PHYSICAL_PORT, color_devices_info.front().device_path);
+		void process_function(byte * const dest[], const byte * source, int width, int height, int actual_size, int input_size) override
+		{
+			auto out = dest[0];
+			auto index_source = 0;
+			for (auto i = 0; i < height; i+=2)
+			{
+				for (auto j = 0; j < width; j+=2)
+				{
+					auto y411_pix = &source[index_source];
+					auto l0_u0 = y411_pix[0];
+					auto l0_y0 = y411_pix[1];
+					auto l0_y1 = y411_pix[2];
+					auto l0_v0 = y411_pix[3];
+					auto l1_y0 = y411_pix[4];
+					auto l1_y1 = y411_pix[4];
 
-        // processing blocks
-        if( _autocal )
-        {
-            color_ep->register_processing_block(
-                processing_block_factory::create_pbf_vector< yuy2_converter >(
-                    RS2_FORMAT_YUYV,                                                      // from
-                    map_supported_color_formats( RS2_FORMAT_YUYV ), RS2_STREAM_COLOR,     // to
-                    [=]( std::shared_ptr< generic_processing_block > pb )
-                    {
-                        auto cpb = std::make_shared< composite_processing_block >();
-                        cpb->add(std::make_shared< ac_trigger::color_processing_block >(_autocal));
-                        cpb->add( pb );
-                        return cpb;
-                    } ) );
-        }
-        else
-        {
-            color_ep->register_processing_block(
-                processing_block_factory::create_pbf_vector< yuy2_converter >(
-                    RS2_FORMAT_YUYV,                                                      // from
-                    map_supported_color_formats( RS2_FORMAT_YUYV ), RS2_STREAM_COLOR ) ); // to
-        }
+					byte yuv0_0[3] = { l0_y0, l0_u0, l0_v0 };
+					convert_yuv_to_rgb(yuv0_0, &out[i*width*3 + j*3]);
+
+					byte yuv0_1[3] = { l0_y1, l0_u0, l0_v0 };
+					convert_yuv_to_rgb(yuv0_0, &out[i*width*3 + j *3+ 3*3]);
+
+					byte yuv1_0[3] = { l1_y0, l0_u0, l0_v0 };
+					convert_yuv_to_rgb(yuv1_0, &out[(i+1)*width*3 + j*3]);
+
+					byte yuv1_1[3] = { l1_y1, l0_u0, l0_v0 };
+					convert_yuv_to_rgb(yuv1_0, &out[(i + 1)*width*3 + j*3 + 3*3]);
+
+					index_source += 6;
+				}
+			}			
+		}
+
+		void convert_yuv_to_rgb(const byte yuv[3], byte* rgb)
+		{
+			int32_t c = yuv[0] - 16;
+			int32_t d = yuv[1] - 128;
+			int32_t e = yuv[2] - 128;
+
+			int32_t t;
+#define clamp(x)  ((t=(x)) > 255 ? 255 : t < 0 ? 0 : t)
+			rgb[0] = clamp((298 * c + 409 * e + 128) >> 8);
+			rgb[1] = clamp((298 * c - 100 * d - 208 * e + 128) >> 8);
+			rgb[2] = clamp((298 * c + 516 * d + 128) >> 8);
+#undef clamp
+		}		
+						
+	};
+
+	std::shared_ptr<synthetic_sensor> l500_color::create_color_device(std::shared_ptr<context> ctx, const std::vector<platform::uvc_device_info>& color_devices_info)
+	{
+		auto&& backend = ctx->get_backend();
+
+		std::unique_ptr<frame_timestamp_reader> timestamp_reader_metadata(new ivcam2::l500_timestamp_reader_from_metadata(backend.create_time_service()));
+		auto enable_global_time_option = std::shared_ptr<global_time_option>(new global_time_option());
+		auto raw_color_ep = std::make_shared<uvc_sensor>("RGB Camera", ctx->get_backend().create_uvc_device(color_devices_info.front()),
+			std::unique_ptr<frame_timestamp_reader>(new global_timestamp_reader(std::move(timestamp_reader_metadata), _tf_keeper, enable_global_time_option)),
+			this);
+		auto color_ep = std::make_shared<l500_color_sensor>(this, raw_color_ep, ctx, l500_color_fourcc_to_rs2_format, l500_color_fourcc_to_rs2_stream);
+
+		color_ep->register_info(RS2_CAMERA_INFO_PHYSICAL_PORT, color_devices_info.front().device_path);
+
+		// processing blocks
+		if (_autocal)
+		{
+			color_ep->register_processing_block(
+				processing_block_factory::create_pbf_vector< yuy2_converter >(
+					RS2_FORMAT_YUYV,                                                      // from
+					map_supported_color_formats(RS2_FORMAT_YUYV), RS2_STREAM_COLOR,     // to
+					[=](std::shared_ptr< generic_processing_block > pb)
+			{
+				auto cpb = std::make_shared< composite_processing_block >();
+				cpb->add(std::make_shared< ac_trigger::color_processing_block >(_autocal));
+				cpb->add(pb);
+				return cpb;
+			}));
+		}
+		else
+		{
+			color_ep->register_processing_block(
+				processing_block_factory::create_pbf_vector< yuy2_converter >(
+					RS2_FORMAT_YUYV,                                                      // from
+					map_supported_color_formats(RS2_FORMAT_YUYV), RS2_STREAM_COLOR)); // to
+		}
+		color_ep->register_processing_block(processing_block_factory::create_id_pbf(RS2_FORMAT_Y411, RS2_STREAM_COLOR));
+		color_ep->register_processing_block(
+		{ { RS2_FORMAT_Y411 } },
+		{ { RS2_FORMAT_RGB8, RS2_STREAM_COLOR } },
+			[]() { return std::make_shared<Y411_converter>(RS2_FORMAT_RGB8); });
 
         // options
         color_ep->register_option(RS2_OPTION_GLOBAL_TIME_ENABLED, enable_global_time_option);
