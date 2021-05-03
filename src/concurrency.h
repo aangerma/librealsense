@@ -214,11 +214,12 @@ public:
         dispatcher* _owner;
     };
     typedef std::function<void(cancellable_timer const &)> action;
-    dispatcher(unsigned int cap, std::function <void(action)> on_drop_callback = nullptr)
+    dispatcher(unsigned int cap, std::string name = "", std::function <void(action)> on_drop_callback = nullptr)
         : _queue(cap, on_drop_callback),
           _was_stopped(true),
           _was_flushed(false),
-          _is_alive(true)
+          _is_alive(true),
+          _name(name)
     {
         _thread = std::thread([&]()
         {
@@ -230,6 +231,11 @@ public:
                 if (_queue.dequeue(&item, timeout_ms))
                 {
                     cancellable_timer time(this);
+
+                    {
+                        std::unique_lock<std::mutex> lock(_was_flushed_mutex);
+                        _was_flushed = false;
+                    }
 
                     try
                     {
@@ -295,7 +301,6 @@ public:
     {
         {
             std::unique_lock<std::mutex> lock(_was_stopped_mutex);
-
             if (_was_stopped.load()) return;
 
             _was_stopped = true;
@@ -303,11 +308,6 @@ public:
         }
 
         _queue.clear();
-
-        {
-            std::unique_lock<std::mutex> lock(_was_flushed_mutex);
-            _was_flushed = false;
-        }
 
         std::unique_lock<std::mutex> lock_was_flushed(_was_flushed_mutex);
         _was_flushed_cv.wait_for(lock_was_flushed, std::chrono::hours(999999), [&]() { return _was_flushed.load(); });
@@ -318,8 +318,8 @@ public:
     ~dispatcher()
     {
         stop();
-        _queue.clear();
         _is_alive = false;
+        _queue.clear();
 
         if (_thread.joinable())
         _thread.join();
@@ -370,14 +370,15 @@ private:
     std::mutex _blocking_invoke_mutex;
 
     std::atomic<bool> _is_alive;
+    std::string _name;
 };
 
 template<class T = std::function<void(dispatcher::cancellable_timer)>>
 class active_object
 {
 public:
-    active_object(T operation)
-        : _operation(std::move(operation)), _dispatcher(1), _stopped(true)
+    active_object(T operation, std::string name = "")
+        : _operation(std::move(operation)), _dispatcher(1, name), _stopped(true)
     {
     }
 
