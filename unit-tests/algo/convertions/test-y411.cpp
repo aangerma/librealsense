@@ -8,6 +8,8 @@
 #include <librealsense2/rsutil.h>
 #include "../src/types.h"
 #include "../src/proc/color-formats-converter.h"
+#include <librealsense2-gl/rs_processing_gl.hpp> // Include GPU-Processing API
+#include <../third-party/glfw/include/GLFW/glfw3.h>
 
 const int W = 16;
 const int H = 2;
