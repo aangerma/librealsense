@@ -26,6 +26,18 @@ namespace librealsense
         void process_function(byte * const dest[], const byte * source, int width, int height, int actual_size, int input_size) override;
     };
 
+    class LRS_EXTENSION_API y411_converter : public color_converter
+    {
+    public:
+        y411_converter(rs2_format target_format) :
+            y411_converter("Y411 Converter", target_format) {};
+
+    protected:
+        y411_converter(const char* name, rs2_format target_format) :
+            color_converter(name, target_format) {};
+        void process_function(byte * const dest[], const byte * source, int width, int height, int actual_size, int input_size) override;
+    };
+
     class LRS_EXTENSION_API uyvy_converter : public color_converter
     {
     public:
@@ -62,28 +74,6 @@ namespace librealsense
         void process_function(byte * const dest[], const byte * source, int width, int height, int actual_size, int input_size) override;
     };
 
-    class Y411_converter : public functional_processing_block
-    {
-    public:
-        Y411_converter(const rs2_format & target_format)
-            : functional_processing_block("Y411 Transform", target_format) {};
-
-    protected:
-        Y411_converter(const char * name, const rs2_format & target_format)
-            : functional_processing_block(
-                name, target_format, RS2_STREAM_COLOR, RS2_EXTENSION_VIDEO_FRAME)
-        {
-            _stream_filter.format = _target_format;
-            _stream_filter.stream = _target_stream;
-        }
-
-        void process_function(byte * const dest[],
-            const byte * source,
-            int width,
-            int height,
-            int actual_size,
-            int input_size) override;
-    };
     void unpack_y411(byte * const dest[], const byte * s, int w, int h, int actual_size);
     void unpack_y411_sse(byte * const dest, const byte * s, int w, int h, int actual_size);
     void unpack_y411_native(byte * const dest, const byte * s, int w, int h, int actual_size);
